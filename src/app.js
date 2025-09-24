@@ -17,7 +17,7 @@ const app = express();
 
 const allowedOrigins = [
   // add your frontends
-  "https://yourchurchsite.netlify.app",
+  "https://victoriousarmyrevivalmovementchurch.netlify.app",
   "http://localhost:5173"
 ];
 
