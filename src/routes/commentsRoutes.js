@@ -5,8 +5,13 @@ import { requireAdmin } from "../middleware/adminAuth.js";
 
 const router = express.Router();
 
+// GET all comments for a post
 router.get("/post/:postId", listCommentsForPost);
-router.post("/", createComment); // guest allowed
-router.delete("/:id", requireAdmin, deleteComment); // admin moderation
+
+// Guest can create comment
+router.post("/", createComment);
+
+// Admin can delete comment
+router.delete("/:id", requireAdmin, deleteComment);
 
 export default router;
