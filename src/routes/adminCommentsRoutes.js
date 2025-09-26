@@ -1,14 +1,15 @@
 // src/routes/adminCommentsRoutes.js
 import express from "express";
-import { listCommentsForPost, deleteComment } from "../controllers/adminCommentsController.js";
 import { requireAdmin } from "../middleware/adminAuth.js";
+import { listComments, deleteComment } from "../controllers/adminCommentsController.js";
 
 const router = express.Router();
 
-// Admin: list all comments for a post
-router.get("/post/:postId", requireAdmin, listCommentsForPost);
+// Admin: list comments for a post or sermon
+// Example: GET /api/admin/comments/123?type=sermon
+router.get("/:id", requireAdmin, listComments);
 
-// Admin: delete a comment
+// Admin: delete comment
 router.delete("/:id", requireAdmin, deleteComment);
 
 export default router;
