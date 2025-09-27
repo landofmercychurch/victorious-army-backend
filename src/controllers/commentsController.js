@@ -15,7 +15,15 @@ export async function createComment(req, res) {
 
     const { data, error } = await supabase
       .from("comments")
-      .insert([{ post_id, sermon_id, name, content }])
+      .insert([
+        {
+          post_id,
+          sermon_id,
+          name,
+          content,
+          is_guest: true // default behaviour
+        }
+      ])
       .select()
       .single();
 
@@ -32,11 +40,18 @@ export async function getComments(req, res) {
     const { id } = req.params;
     const { type } = req.query; // ?type=post or ?type=sermon
 
-    let query = supabase.from("comments").select("*").order("created_at", { ascending: false });
+    let query = supabase
+      .from("comments")
+      .select("*")
+      .order("created_at", { ascending: false });
 
-    if (type === "post") query = query.eq("post_id", id);
-    else if (type === "sermon") query = query.eq("sermon_id", id);
-    else return res.status(400).json({ error: "type must be 'post' or 'sermon'" });
+    if (type === "post") {
+      query = query.eq("post_id", id);
+    } else if (type === "sermon") {
+      query = query.eq("sermon_id", id);
+    } else {
+      return res.status(400).json({ error: "type must be 'post' or 'sermon'" });
+    }
 
     const { data, error } = await query;
 
