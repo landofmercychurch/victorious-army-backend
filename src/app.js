@@ -9,6 +9,7 @@ import memorialsRoutes from "./routes/memorialsRoutes.js";
 import sermonsRoutes from "./routes/sermonsRoutes.js";
 import postsRoutes from "./routes/postsRoutes.js";             // public posts
 import adminPostsRoutes from "./routes/adminPostsRoutes.js";   // admin posts
+import postsPreviewRoutes from "./routes/postsPreviewRoutes.js"; // post preview for social sharing
 import ebooksRoutes from "./routes/ebooksRoutes.js";
 import commentsRoutes from "./routes/commentsRoutes.js";          // frontend comments
 import adminCommentsRoutes from "./routes/adminCommentsRoutes.js"; // admin-only comments
@@ -41,6 +42,7 @@ app.use("/api/memorials", memorialsRoutes);
 app.use("/api/sermons", sermonsRoutes);
 app.use("/api/posts", postsRoutes);           // public access
 app.use("/api/admin/posts", adminPostsRoutes); // admin-only access
+app.use("/posts/preview", postsPreviewRoutes); // public preview page for social sharing
 app.use("/api/ebooks", ebooksRoutes);
 app.use("/api/comments", commentsRoutes);             // public comments
 app.use("/api/admin/comments", adminCommentsRoutes);  // admin-only comments
