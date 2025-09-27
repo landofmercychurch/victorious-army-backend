@@ -1,8 +1,8 @@
 // src/controllers/postsController.js
-import cloudinary from "../config/cloudinary.js"; // configured cloudinary instance
+import cloudinary from "../config/cloudinary.js"; // v2 configured instance
 import { supabase } from "../config/supabase.js"; // supabase client
 
-// Public: list posts
+// --- Public: list posts ---
 export async function listPosts(req, res) {
   try {
     const { data, error } = await supabase
@@ -17,15 +17,16 @@ export async function listPosts(req, res) {
   }
 }
 
-// Admin: create post
+// --- Admin: create post ---
 export async function createPost(req, res) {
   try {
     const { title, description } = req.body;
     let imageUrl = null;
 
     if (req.file) {
+      // Upload image to Cloudinary
       const uploadResult = await new Promise((resolve, reject) => {
-        const stream = cloudinary.v2.uploader.upload_stream(
+        const stream = cloudinary.uploader.upload_stream(
           { folder: "posts" },
           (error, result) => (error ? reject(error) : resolve(result))
         );
@@ -34,6 +35,7 @@ export async function createPost(req, res) {
       imageUrl = uploadResult.secure_url;
     }
 
+    // Insert into Supabase
     const { data, error } = await supabase
       .from("posts")
       .insert([{ title, description, image_url: imageUrl }])
@@ -43,11 +45,12 @@ export async function createPost(req, res) {
     if (error) throw error;
     res.status(201).json(data);
   } catch (err) {
+    console.error("Create post error:", err);
     res.status(500).json({ error: err.message });
   }
 }
 
-// Admin: delete post
+// --- Admin: delete post ---
 export async function deletePost(req, res) {
   try {
     const { id } = req.params;
@@ -59,11 +62,12 @@ export async function deletePost(req, res) {
     if (error) throw error;
     res.json({ message: "Post deleted", data });
   } catch (err) {
+    console.error("Delete post error:", err);
     res.status(500).json({ error: err.message });
   }
 }
 
-// Admin: delete comment
+// --- Admin: delete comment ---
 export async function deleteComment(req, res) {
   try {
     const { id } = req.params;
@@ -75,6 +79,7 @@ export async function deleteComment(req, res) {
     if (error) throw error;
     res.json({ message: "Comment deleted", data });
   } catch (err) {
+    console.error("Delete comment error:", err);
     res.status(500).json({ error: err.message });
   }
 }
