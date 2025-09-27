@@ -1,6 +1,9 @@
 // src/controllers/likesController.js
 import { supabase } from "../config/supabase.js";
 
+/**
+ * Create a like for a sermon or post
+ */
 export async function createLike(req, res) {
   try {
     const { post_id, sermon_id } = req.body;
@@ -23,19 +26,28 @@ export async function createLike(req, res) {
   }
 }
 
+/**
+ * Count likes for a sermon or post
+ * Accepts query parameters:
+ *  ?type=sermon&sermon_id=<id>
+ *  ?type=post&post_id=<id>
+ */
 export async function countLikes(req, res) {
   try {
-    const { id } = req.params;
-    const { type } = req.query; // ?type=post or ?type=sermon
+    const { type } = req.query;
+    const { sermon_id, post_id } = req.query; // ids passed in query
 
     let query = supabase.from("likes").select("*", { count: "exact", head: true });
 
-    if (type === "post") query = query.eq("post_id", id);
-    else if (type === "sermon") query = query.eq("sermon_id", id);
-    else return res.status(400).json({ error: "type must be 'post' or 'sermon'" });
+    if (type === "post" && post_id) {
+      query = query.eq("post_id", post_id);
+    } else if (type === "sermon" && sermon_id) {
+      query = query.eq("sermon_id", sermon_id);
+    } else {
+      return res.status(400).json({ error: "type must be 'post' or 'sermon' with a valid id" });
+    }
 
     const { count, error } = await query;
-
     if (error) throw error;
 
     res.json({ count });
@@ -43,4 +55,3 @@ export async function countLikes(req, res) {
     res.status(500).json({ error: err.message });
   }
 }
-
