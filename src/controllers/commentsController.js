@@ -19,10 +19,10 @@ export async function createComment(req, res) {
         {
           post_id,
           sermon_id,
-          name,
+          name: name?.trim() || "Guest", // ✅ default to Guest if empty
           content,
-          is_guest: true // default behaviour
-        }
+          is_guest: true, // ✅ always true for now
+        },
       ])
       .select()
       .single();
@@ -57,7 +57,7 @@ export async function getComments(req, res) {
 
     if (error) throw error;
 
-    res.json(data);
+    res.json(data || []); // ✅ always return an array
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
