@@ -7,7 +7,7 @@ import dailyVerseRoutes from "./routes/dailyVerseRoutes.js";
 import eventsRoutes from "./routes/eventsRoutes.js";
 import memorialsRoutes from "./routes/memorialsRoutes.js";
 import sermonsRoutes from "./routes/sermonsRoutes.js";
-import picturePostsRoutes from "./routes/picturePostsRoutes.js";
+import postsRoutes from "./routes/postsRoutes.js"; // updated from picturePostsRoutes
 import ebooksRoutes from "./routes/ebooksRoutes.js";
 import commentsRoutes from "./routes/commentsRoutes.js";          // 👈 frontend comments
 import adminCommentsRoutes from "./routes/adminCommentsRoutes.js"; // 👈 admin-only comments
@@ -29,6 +29,7 @@ app.use(
     credentials: true,
   })
 );
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -37,7 +38,7 @@ app.use("/api/daily-verse", dailyVerseRoutes);
 app.use("/api/events", eventsRoutes);
 app.use("/api/memorials", memorialsRoutes);
 app.use("/api/sermons", sermonsRoutes);
-app.use("/api/picture-posts", picturePostsRoutes);
+app.use("/api/posts", postsRoutes); // updated route path
 app.use("/api/ebooks", ebooksRoutes);
 app.use("/api/comments", commentsRoutes);             // frontend use
 app.use("/api/admin/comments", adminCommentsRoutes);  // admin-only use
