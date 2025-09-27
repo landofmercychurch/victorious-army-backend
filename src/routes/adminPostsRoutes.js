@@ -7,7 +7,7 @@ import { requireAdmin } from "../middleware/adminAuth.js";
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage() });
 
-// Admin can create a post with image
+// Admin can create a post with an image
 router.post("/", requireAdmin, upload.single("image"), createPost);
 
 // Admin can delete a post
