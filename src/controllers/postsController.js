@@ -1,17 +1,17 @@
-import cloudinary from "cloudinary";
-import { pool } from "../db.js";
-
-cloudinary.v2.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-  api_key: process.env.CLOUDINARY_API_KEY,
-  api_secret: process.env.CLOUDINARY_API_SECRET,
-});
+// src/controllers/postsController.js
+import cloudinary from "../config/cloudinary.js"; // configured cloudinary instance
+import { supabase } from "../config/supabase.js"; // supabase client
 
 // Public: list posts
 export async function listPosts(req, res) {
   try {
-    const result = await pool.query("SELECT * FROM posts ORDER BY created_at DESC");
-    res.json(result.rows);
+    const { data, error } = await supabase
+      .from("posts")
+      .select("*")
+      .order("created_at", { ascending: false });
+
+    if (error) throw error;
+    res.json(data);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -34,12 +34,14 @@ export async function createPost(req, res) {
       imageUrl = uploadResult.secure_url;
     }
 
-    const result = await pool.query(
-      "INSERT INTO posts (title, description, image_url) VALUES ($1, $2, $3) RETURNING *",
-      [title, description, imageUrl]
-    );
+    const { data, error } = await supabase
+      .from("posts")
+      .insert([{ title, description, image_url: imageUrl }])
+      .select()
+      .single();
 
-    res.status(201).json(result.rows[0]);
+    if (error) throw error;
+    res.status(201).json(data);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -49,8 +51,13 @@ export async function createPost(req, res) {
 export async function deletePost(req, res) {
   try {
     const { id } = req.params;
-    await pool.query("DELETE FROM posts WHERE id = $1", [id]);
-    res.json({ message: "Post deleted" });
+    const { data, error } = await supabase
+      .from("posts")
+      .delete()
+      .eq("id", id);
+
+    if (error) throw error;
+    res.json({ message: "Post deleted", data });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -60,8 +67,13 @@ export async function deletePost(req, res) {
 export async function deleteComment(req, res) {
   try {
     const { id } = req.params;
-    await pool.query("DELETE FROM comments WHERE id = $1", [id]);
-    res.json({ message: "Comment deleted" });
+    const { data, error } = await supabase
+      .from("comments")
+      .delete()
+      .eq("id", id);
+
+    if (error) throw error;
+    res.json({ message: "Comment deleted", data });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
