@@ -7,10 +7,11 @@ import dailyVerseRoutes from "./routes/dailyVerseRoutes.js";
 import eventsRoutes from "./routes/eventsRoutes.js";
 import memorialsRoutes from "./routes/memorialsRoutes.js";
 import sermonsRoutes from "./routes/sermonsRoutes.js";
-import postsRoutes from "./routes/postsRoutes.js"; // updated from picturePostsRoutes
+import postsRoutes from "./routes/postsRoutes.js";             // public posts
+import adminPostsRoutes from "./routes/adminPostsRoutes.js";   // admin posts
 import ebooksRoutes from "./routes/ebooksRoutes.js";
-import commentsRoutes from "./routes/commentsRoutes.js";          // 👈 frontend comments
-import adminCommentsRoutes from "./routes/adminCommentsRoutes.js"; // 👈 admin-only comments
+import commentsRoutes from "./routes/commentsRoutes.js";          // frontend comments
+import adminCommentsRoutes from "./routes/adminCommentsRoutes.js"; // admin-only comments
 import likesRoutes from "./routes/likesRoutes.js";
 
 const app = express();
@@ -33,18 +34,19 @@ app.use(
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// routes
+// Routes
 app.use("/api/daily-verse", dailyVerseRoutes);
 app.use("/api/events", eventsRoutes);
 app.use("/api/memorials", memorialsRoutes);
 app.use("/api/sermons", sermonsRoutes);
-app.use("/api/posts", postsRoutes); // updated route path
+app.use("/api/posts", postsRoutes);           // public access
+app.use("/api/admin/posts", adminPostsRoutes); // admin-only access
 app.use("/api/ebooks", ebooksRoutes);
-app.use("/api/comments", commentsRoutes);             // frontend use
-app.use("/api/admin/comments", adminCommentsRoutes);  // admin-only use
+app.use("/api/comments", commentsRoutes);             // public comments
+app.use("/api/admin/comments", adminCommentsRoutes);  // admin-only comments
 app.use("/api/likes", likesRoutes);
 
-// basic health
+// Basic health check
 app.get("/", (req, res) =>
   res.json({ ok: true, message: "Church backend running" })
 );
