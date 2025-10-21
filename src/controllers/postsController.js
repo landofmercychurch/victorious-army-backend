@@ -1,8 +1,9 @@
-import cloudinary from "../config/cloudinary.js"; // v2 configured instance
-import { supabase } from "../config/supabase.js"; // supabase client
+import cloudinary from "../config/cloudinary.js";
+import { supabase } from "../config/supabase.js";
 
 // --- Public: list posts ---
 export async function listPosts(req, res) {
+  console.log("📸 Fetching posts list...");
   try {
     const { data, error } = await supabase
       .from("posts")
@@ -10,8 +11,11 @@ export async function listPosts(req, res) {
       .order("created_at", { ascending: false });
 
     if (error) throw error;
+
+    console.log(`✅ Found ${data.length} posts`);
     res.json(data);
   } catch (err) {
+    console.error("❌ Error fetching posts:", err);
     res.status(500).json({ error: err.message });
   }
 }
@@ -27,18 +31,16 @@ export async function getPostPreview(req, res) {
       .eq("id", id)
       .single();
 
-    if (error || !post) {
-      return res.status(404).send("Post not found");
-    }
+    if (error || !post) return res.status(404).send("Post not found");
 
-    // Helper to escape HTML special chars
+    // Escape HTML special chars
     const escapeHTML = (str) =>
       String(str || "").replace(/[&<>"']/g, (m) => ({
         "&": "&amp;",
         "<": "&lt;",
         ">": "&gt;",
         '"': "&quot;",
-        "'": "&#39;"
+        "'": "&#39;",
       }[m]));
 
     const fullUrl = `${req.protocol}://${req.get("host")}/posts/${post.id}`;
@@ -53,15 +55,11 @@ export async function getPostPreview(req, res) {
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>${title}</title>
-
-        <!-- Open Graph / Facebook -->
         <meta property="og:type" content="article" />
         <meta property="og:title" content="${title}" />
         <meta property="og:description" content="${description}" />
         <meta property="og:image" content="${image}" />
         <meta property="og:url" content="${fullUrl}" />
-
-        <!-- Twitter -->
         <meta name="twitter:card" content="summary_large_image" />
         <meta name="twitter:title" content="${title}" />
         <meta name="twitter:description" content="${description}" />
@@ -70,62 +68,104 @@ export async function getPostPreview(req, res) {
       <body>
         <h1>${title}</h1>
         <p>${description}</p>
-        <img src="${image}" alt="${title}" />
+        <img src="${image}" alt="${title}" style="max-width:100%;" />
       </body>
       </html>
     `);
   } catch (err) {
-    console.error("Get post preview error:", err);
+    console.error("❌ Get post preview error:", err);
     res.status(500).send("Internal server error");
   }
 }
 
 // --- Admin: create post ---
 export async function createPost(req, res) {
+  console.log("🖼️ Received post upload request:", req.body);
   try {
     const { title, description } = req.body;
-    let imageUrl = null;
+    let image_url = null;
+    let public_id = null;
 
     if (req.file) {
-      // Upload image to Cloudinary
-      const uploadResult = await new Promise((resolve, reject) => {
+      console.log("☁️ Uploading image to Cloudinary:", req.file.originalname);
+      const result = await new Promise((resolve, reject) => {
         const stream = cloudinary.uploader.upload_stream(
-          { folder: "posts" },
-          (error, result) => (error ? reject(error) : resolve(result))
+          { folder: "posts", resource_type: "image" },
+          (err, result) => {
+            if (err) return reject(err);
+            resolve(result);
+          }
         );
         stream.end(req.file.buffer);
       });
-      imageUrl = uploadResult.secure_url;
+
+      image_url = result.secure_url;
+      public_id = result.public_id;
+
+      console.log("✅ Cloudinary upload successful:", {
+        public_id,
+        image_url,
+      });
     }
 
-    // Insert into Supabase
+    console.log("🗂️ Inserting new post into database...");
     const { data, error } = await supabase
       .from("posts")
-      .insert([{ title, description, image_url: imageUrl }])
+      .insert([{ title, description, image_url, public_id }])
       .select()
       .single();
 
     if (error) throw error;
+
+    console.log("✅ Post created:", data);
     res.status(201).json(data);
   } catch (err) {
-    console.error("Create post error:", err);
+    console.error("❌ Error creating post:", err);
     res.status(500).json({ error: err.message });
   }
 }
 
 // --- Admin: delete post ---
 export async function deletePost(req, res) {
+  console.log("🗑️ Deleting post:", req.params.id);
   try {
     const { id } = req.params;
-    const { data, error } = await supabase
+
+    // Fetch post to get its Cloudinary public_id
+    const { data: post, error: fetchError } = await supabase
+      .from("posts")
+      .select("id, public_id")
+      .eq("id", id)
+      .single();
+
+    if (fetchError || !post) {
+      return res.status(404).json({ error: "Post not found" });
+    }
+
+    // Delete image from Cloudinary if exists
+    if (post.public_id) {
+      try {
+        await cloudinary.uploader.destroy(post.public_id, {
+          resource_type: "image",
+        });
+        console.log("🧹 Cloudinary image deleted:", post.public_id);
+      } catch (cloudErr) {
+        console.error("⚠️ Cloudinary delete error:", cloudErr);
+      }
+    }
+
+    // Delete from Supabase
+    const { error: deleteError } = await supabase
       .from("posts")
       .delete()
       .eq("id", id);
 
-    if (error) throw error;
-    res.json({ message: "Post deleted", data });
+    if (deleteError) throw deleteError;
+
+    console.log("✅ Post deleted successfully");
+    res.json({ success: true, message: "Post deleted successfully" });
   } catch (err) {
-    console.error("Delete post error:", err);
+    console.error("❌ Delete post error:", err);
     res.status(500).json({ error: err.message });
   }
 }
@@ -134,15 +174,13 @@ export async function deletePost(req, res) {
 export async function deleteComment(req, res) {
   try {
     const { id } = req.params;
-    const { data, error } = await supabase
-      .from("comments")
-      .delete()
-      .eq("id", id);
+    const { error } = await supabase.from("comments").delete().eq("id", id);
 
     if (error) throw error;
-    res.json({ message: "Comment deleted", data });
+    console.log("💬 Comment deleted:", id);
+    res.json({ message: "Comment deleted" });
   } catch (err) {
-    console.error("Delete comment error:", err);
+    console.error("❌ Delete comment error:", err);
     res.status(500).json({ error: err.message });
   }
 }
