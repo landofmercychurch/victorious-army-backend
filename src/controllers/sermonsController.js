@@ -29,48 +29,39 @@ export async function listSermons(req, res) {
 export async function createSermon(req, res) {
   try {
     const { title, description } = req.body;
-    let video_url = null;
-    let thumbnail_url = null;
-    let public_id = null;
 
-    console.log("🎬 Received sermon upload request:", { title, description });
-    console.log("📁 File received:", req.file ? req.file.originalname : "No file uploaded");
-
-    // Ensure a file is provided
     if (!req.file) {
       console.warn("⚠️ No video file attached");
       return res.status(400).json({ error: "No video file provided" });
     }
 
+    console.log("🎬 Received sermon upload request:", { title, description });
+    console.log("📁 File received:", req.file.originalname);
+
     // Upload video to Cloudinary
-    console.log("☁️ Uploading video to Cloudinary...");
     const uploadResult = await new Promise((resolve, reject) => {
       const stream = cloudinary.uploader.upload_stream(
         { resource_type: "video", folder: "sermons" },
-        (err, result) => {
-          if (err) return reject(err);
-          resolve(result);
-        }
+        (err, result) => (err ? reject(err) : resolve(result))
       );
       stream.end(req.file.buffer);
     });
 
-    video_url = uploadResult.secure_url;
-    public_id = uploadResult.public_id;
+    const video_url = uploadResult.secure_url;
+    const public_id = uploadResult.public_id;
 
-    console.log("✅ Cloudinary upload successful:", {
-      public_id,
-      video_url,
-    });
+    console.log("✅ Cloudinary upload successful:", { public_id, video_url });
 
     // Generate a thumbnail snapshot at 5 seconds
+    let thumbnail_url = null;
     if (public_id) {
-      thumbnail_url = cloudinary.url(public_id + ".jpg", {
+      thumbnail_url = cloudinary.url(public_id, {
         resource_type: "video",
         format: "jpg",
         transformation: [
-          { start_offset: "5", width: 640, height: 360, crop: "fill" },
+          { start_offset: "5", width: 640, height: 360, crop: "fill" }
         ],
+        secure: true
       });
     }
 
@@ -116,9 +107,7 @@ export async function deleteSermon(req, res) {
     if (sermon.public_id) {
       console.log("☁️ Removing video from Cloudinary:", sermon.public_id);
       try {
-        await cloudinary.uploader.destroy(sermon.public_id, {
-          resource_type: "video",
-        });
+        await cloudinary.uploader.destroy(sermon.public_id, { resource_type: "video" });
         console.log("✅ Cloudinary video deleted");
       } catch (cloudErr) {
         console.error("❌ Cloudinary delete error:", cloudErr);
@@ -140,3 +129,4 @@ export async function deleteSermon(req, res) {
     res.status(500).json({ error: err.message });
   }
 }
+
