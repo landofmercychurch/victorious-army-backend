@@ -8,7 +8,11 @@ export async function listEbooks(req, res) {
   try {
     const { series } = req.query; // optional query ?series=SeriesName
 
-    let query = supabase.from("ebooks").select("*").order("series_order", { ascending: true }).order("created_at", { ascending: false });
+    let query = supabase
+      .from("ebooks")
+      .select("*")
+      .order("series_order", { ascending: true })
+      .order("created_at", { ascending: false });
 
     if (series) query = query.eq("series", series);
 
@@ -22,7 +26,7 @@ export async function listEbooks(req, res) {
 }
 
 /**
- * Upload a new ebook (PDF) with optional cover image
+ * Upload a new ebook (PDF) with optional cover image and series
  */
 export async function uploadEbook(req, res) {
   try {
@@ -31,25 +35,34 @@ export async function uploadEbook(req, res) {
     if (!req.files?.pdf) return res.status(400).json({ error: "PDF file is required" });
 
     // Upload PDF
-    const pdfResult = await uploadBufferToCloudinary(req.files.pdf[0].buffer, { folder: "ebooks", resource_type: "raw" });
+    const pdfResult = await uploadBufferToCloudinary(req.files.pdf[0].buffer, {
+      folder: "ebooks",
+      resource_type: "raw",
+    });
     const pdf_url = pdfResult.secure_url;
 
+    // Optional cover upload
     let cover_url = null;
     if (req.files?.cover) {
-      const coverResult = await uploadBufferToCloudinary(req.files.cover[0].buffer, { folder: "ebooks/covers", resource_type: "image" });
+      const coverResult = await uploadBufferToCloudinary(req.files.cover[0].buffer, {
+        folder: "ebooks/covers",
+        resource_type: "image",
+      });
       cover_url = coverResult.secure_url;
     }
 
     const { data, error } = await supabase
       .from("ebooks")
-      .insert([{
-        title,
-        author,
-        series: series || null,
-        series_order: series_order ? parseInt(series_order) : null,
-        pdf_url,
-        cover_url
-      }])
+      .insert([
+        {
+          title,
+          author,
+          series: series || null,
+          series_order: series_order ? parseInt(series_order) : null,
+          pdf_url,
+          cover_url,
+        },
+      ])
       .select()
       .single();
 
