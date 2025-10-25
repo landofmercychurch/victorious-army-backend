@@ -3,7 +3,7 @@ import { supabase } from "../config/supabase.js";
 import cloudinary from "../config/cloudinary.js";
 
 /**
- * Get list of sermons
+ * 📖 Get list of sermons
  */
 export async function listSermons(req, res) {
   try {
@@ -24,7 +24,7 @@ export async function listSermons(req, res) {
 }
 
 /**
- * Upload and create a new sermon record
+ * 🎬 Upload and create a new sermon record
  */
 export async function createSermon(req, res) {
   try {
@@ -35,47 +35,77 @@ export async function createSermon(req, res) {
       return res.status(400).json({ error: "No video file provided" });
     }
 
-    console.log("🎬 Received sermon upload request:", { title, description });
-    console.log("📁 File received:", req.file.originalname);
+    console.log("🎥 Received sermon upload:", { title, description });
+    console.log("📁 File:", req.file.originalname);
 
-    // Upload video to Cloudinary
+    // --- Upload to Cloudinary with compression + HLS ---
     const uploadResult = await new Promise((resolve, reject) => {
       const stream = cloudinary.uploader.upload_stream(
-        { resource_type: "video", folder: "sermons" },
+        {
+          resource_type: "video",
+          folder: "sermons",
+          eager: [
+            // ✅ Optimised MP4 version (for web)
+            {
+              transformation: [
+                { fetch_format: "auto", quality: "auto", vc: "auto", h: 720 },
+              ],
+              format: "mp4",
+            },
+            // ✅ HLS adaptive streaming version
+            {
+              streaming_profile: "auto",
+              format: "m3u8",
+            },
+          ],
+          eager_async: false, // process immediately so URLs are returned
+        },
         (err, result) => (err ? reject(err) : resolve(result))
       );
+
       stream.end(req.file.buffer);
     });
 
-    const video_url = uploadResult.secure_url;
-    const public_id = uploadResult.public_id;
+    const { secure_url, public_id, eager } = uploadResult;
+    const compressed_url = eager?.[0]?.secure_url || secure_url;
+    const hls_url = eager?.[1]?.secure_url || null;
 
-    console.log("✅ Cloudinary upload successful:", { public_id, video_url });
+    console.log("✅ Cloudinary upload complete:", {
+      public_id,
+      compressed_url,
+      hls_url,
+    });
 
-    // Generate a thumbnail snapshot at 5 seconds
-    let thumbnail_url = null;
-    if (public_id) {
-      thumbnail_url = cloudinary.url(public_id, {
-        resource_type: "video",
-        format: "jpg",
-        transformation: [
-          { start_offset: "5", width: 640, height: 360, crop: "fill" }
-        ],
-        secure: true
-      });
-    }
+    // --- Generate a thumbnail snapshot at 5 seconds ---
+    const thumbnail_url = cloudinary.url(public_id, {
+      resource_type: "video",
+      format: "jpg",
+      transformation: [
+        { start_offset: "5", width: 640, height: 360, crop: "fill" },
+      ],
+      secure: true,
+    });
 
-    // Insert sermon record into Supabase
-    console.log("🗂️ Inserting new sermon into database...");
+    // --- Insert sermon record into Supabase ---
+    console.log("🗂️ Inserting new sermon into Supabase...");
     const { data, error } = await supabase
       .from("sermons")
-      .insert([{ title, description, video_url, thumbnail_url, public_id }])
+      .insert([
+        {
+          title,
+          description,
+          video_url: compressed_url,
+          hls_url,
+          thumbnail_url,
+          public_id,
+        },
+      ])
       .select()
       .single();
 
     if (error) throw error;
 
-    console.log("✅ Sermon successfully saved to DB:", data.id);
+    console.log("✅ Sermon successfully saved:", data.id);
     res.status(201).json(data);
   } catch (err) {
     console.error("❌ Error creating sermon:", err);
@@ -84,14 +114,14 @@ export async function createSermon(req, res) {
 }
 
 /**
- * Delete sermon by ID
+ * 🗑️ Delete sermon by ID
  */
 export async function deleteSermon(req, res) {
   try {
     const { id } = req.params;
     console.log(`🗑️ Deleting sermon with ID: ${id}`);
 
-    // Find sermon in DB
+    // Find sermon in Supabase
     const { data: sermon, error: fetchError } = await supabase
       .from("sermons")
       .select("id, public_id")
@@ -103,18 +133,20 @@ export async function deleteSermon(req, res) {
       return res.status(404).json({ error: "Sermon not found" });
     }
 
-    // Delete video from Cloudinary
+    // Delete from Cloudinary
     if (sermon.public_id) {
       console.log("☁️ Removing video from Cloudinary:", sermon.public_id);
       try {
-        await cloudinary.uploader.destroy(sermon.public_id, { resource_type: "video" });
+        await cloudinary.uploader.destroy(sermon.public_id, {
+          resource_type: "video",
+        });
         console.log("✅ Cloudinary video deleted");
       } catch (cloudErr) {
         console.error("❌ Cloudinary delete error:", cloudErr);
       }
     }
 
-    // Delete sermon record from DB
+    // Delete from Supabase
     const { error: deleteError } = await supabase
       .from("sermons")
       .delete()
@@ -129,4 +161,3 @@ export async function deleteSermon(req, res) {
     res.status(500).json({ error: err.message });
   }
 }
-
