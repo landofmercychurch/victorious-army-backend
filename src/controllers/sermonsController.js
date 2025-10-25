@@ -35,40 +35,45 @@ export async function createSermon(req, res) {
       return res.status(400).json({ error: "No video file provided" });
     }
 
+    if (!title || title.trim() === "") {
+      return res.status(400).json({ error: "Title is required" });
+    }
+
     console.log("🎥 Received sermon upload:", { title, description });
     console.log("📁 File:", req.file.originalname);
 
-    // --- Upload to Cloudinary with compression + HLS ---
+    // --- Upload to Cloudinary (optimised MP4 only) ---
+    console.log("⏫ Uploading to Cloudinary...");
     const uploadResult = await new Promise((resolve, reject) => {
       const stream = cloudinary.uploader.upload_stream(
         {
           resource_type: "video",
           folder: "sermons",
           eager: [
-            // ✅ Optimised MP4 version (for web)
             {
               transformation: [
                 { fetch_format: "auto", quality: "auto", vc: "auto", h: 720 },
               ],
               format: "mp4",
             },
-            // ✅ HLS adaptive streaming version
-            {
-              streaming_profile: "auto",
-              format: "m3u8",
-            },
           ],
-          eager_async: false, // process immediately so URLs are returned
+          eager_async: false,
         },
         (err, result) => (err ? reject(err) : resolve(result))
       );
-
       stream.end(req.file.buffer);
     });
 
-    const { secure_url, public_id, eager } = uploadResult;
+    const { secure_url, public_id, eager, duration, bytes, format } = uploadResult;
     const compressed_url = eager?.[0]?.secure_url || secure_url;
-    const hls_url = eager?.[1]?.secure_url || null;
+
+    // ✅ Generate HLS URL manually (fixes “invalid JSON” error)
+    const hls_url = cloudinary.url(public_id, {
+      resource_type: "video",
+      format: "m3u8",
+      streaming_profile: "auto", // fallback: use "hd" if auto not available
+      secure: true,
+    });
 
     console.log("✅ Cloudinary upload complete:", {
       public_id,
@@ -76,7 +81,7 @@ export async function createSermon(req, res) {
       hls_url,
     });
 
-    // --- Generate a thumbnail snapshot at 5 seconds ---
+    // --- Generate thumbnail at 5 seconds ---
     const thumbnail_url = cloudinary.url(public_id, {
       resource_type: "video",
       format: "jpg",
@@ -86,7 +91,10 @@ export async function createSermon(req, res) {
       secure: true,
     });
 
-    // --- Insert sermon record into Supabase ---
+    // --- Calculate metadata (optional) ---
+    const size_mb = bytes ? (bytes / (1024 * 1024)).toFixed(2) : null;
+
+    // --- Insert record into Supabase ---
     console.log("🗂️ Inserting new sermon into Supabase...");
     const { data, error } = await supabase
       .from("sermons")
@@ -98,6 +106,9 @@ export async function createSermon(req, res) {
           hls_url,
           thumbnail_url,
           public_id,
+          duration,
+          format,
+          size_mb,
         },
       ])
       .select()
