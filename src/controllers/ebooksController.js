@@ -1,5 +1,4 @@
 // src/controllers/ebooksController.js
-
 import { supabase } from "../config/supabase.js";
 import { uploadBufferToCloudinary } from "../utils/upload.js";
 
@@ -10,7 +9,7 @@ export async function listEbooks(req, res) {
   try {
     const { series: filterSeries } = req.query;
 
-    // Fetch all ebooks, optionally filtered by series
+    // Fetch ebooks from Supabase
     let query = supabase
       .from("ebooks")
       .select("*")
@@ -22,11 +21,11 @@ export async function listEbooks(req, res) {
     const { data, error } = await query;
     if (error) throw error;
 
-    // Group ebooks by series
+    // Group by series, "Standalone" if no series
     const grouped = data.reduce((acc, ebook) => {
-      const seriesKey = ebook.series || "Standalone";
-      if (!acc[seriesKey]) acc[seriesKey] = [];
-      acc[seriesKey].push(ebook);
+      const key = ebook.series || "Standalone";
+      if (!acc[key]) acc[key] = [];
+      acc[key].push(ebook);
       return acc;
     }, {});
 
@@ -43,7 +42,7 @@ export async function uploadEbook(req, res) {
   try {
     const { title, author, series, series_order } = req.body;
 
-    if (!req.files?.pdf || !req.files.pdf[0]) {
+    if (!req.files?.pdf?.[0]) {
       return res.status(400).json({ error: "PDF file is required" });
     }
 
@@ -52,11 +51,9 @@ export async function uploadEbook(req, res) {
       folder: "ebooks",
       resource_type: "raw",
     });
-    const pdf_url = pdfResult.secure_url;
 
-    // Optional cover upload
     let cover_url = null;
-    if (req.files?.cover && req.files.cover[0]) {
+    if (req.files?.cover?.[0]) {
       const coverResult = await uploadBufferToCloudinary(req.files.cover[0].buffer, {
         folder: "ebooks/covers",
         resource_type: "image",
@@ -67,16 +64,14 @@ export async function uploadEbook(req, res) {
     // Insert into Supabase
     const { data, error } = await supabase
       .from("ebooks")
-      .insert([
-        {
-          title,
-          author,
-          series: series || null,
-          series_order: series_order ? parseInt(series_order) : null,
-          pdf_url,
-          cover_url,
-        },
-      ])
+      .insert([{
+        title,
+        author,
+        series: series || null,
+        series_order: series_order ? parseInt(series_order) : null,
+        pdf_url: pdfResult.secure_url,
+        cover_url,
+      }])
       .select()
       .single();
 
@@ -101,12 +96,10 @@ export async function deleteEbook(req, res) {
     }
 
     let query = supabase.from("ebooks");
-
     if (id) query = query.eq("id", id);
-    else if (series) query = query.eq("series", series);
+    if (series) query = query.eq("series", series);
 
     const { data, error } = await query.delete().select();
-
     if (error) throw error;
 
     if (!data || data.length === 0) {
