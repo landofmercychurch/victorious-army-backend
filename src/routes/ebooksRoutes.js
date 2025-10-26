@@ -27,5 +27,7 @@ router.post(
 
 // Download PDF with correct filename and metadata
 router.get("/download/:id", downloadEbook);
+// **Add DELETE route for admin**
+router.delete("/:id", requireAdmin, deleteEbook);
 
 export default router;
