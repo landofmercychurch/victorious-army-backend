@@ -4,20 +4,22 @@ import { supabase } from "../config/supabase.js";
 /**
  * Public: List all events
  */
-export async function listEvents(req, res) {
+export async function deleteEvent(req, res) {
   try {
-    console.log("📖 Fetching all events...");
-    const { data, error } = await supabase
+    const { id } = req.params;
+    console.log("🗑️ Deleting event:", id);
+
+    const { error } = await supabase
       .from("events")
-      .select("*")
-      .order("start_at", { ascending: false });
+      .delete()
+      .eq("id", id);
 
     if (error) throw error;
 
-    console.log(`✅ Found ${data.length} events`);
-    res.json(data);
+    console.log("✅ Event deleted successfully:", id);
+    res.json({ success: true, message: "Event deleted successfully" });
   } catch (err) {
-    console.error("❌ Error fetching events:", err);
+    console.error("❌ Error deleting event:", err);
     res.status(500).json({ error: err.message });
   }
 }
