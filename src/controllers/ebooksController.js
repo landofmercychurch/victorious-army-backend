@@ -1,7 +1,8 @@
 // src/controllers/ebooksController.js
 import { supabase } from "../config/supabase.js";
 import { uploadBufferToCloudinary } from "../utils/upload.js";
-import { PDFDocument } from "pdf-lib"; // npm install pdf-lib
+import { PDFDocument } from 'pdf-lib';
+
 
 /**
  * List all ebooks, grouped by series
