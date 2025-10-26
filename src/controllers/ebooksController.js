@@ -57,13 +57,17 @@ export async function uploadEbook(req, res) {
 
     const pdfBuffer = await pdfDoc.save();
 
-    // Upload PDF to Cloudinary
+    // ✅ Upload PDF to Cloudinary (as inline-viewable, not forced download)
     const pdfResult = await uploadBufferToCloudinary(pdfBuffer, {
       folder: "ebooks",
-      resource_type: "raw",
+      resource_type: "auto", // let Cloudinary serve inline
+      use_filename: true,
+      unique_filename: true,
+      overwrite: false,
     });
 
-    let cover_url = null;
+    // ✅ Upload Cover Image (optional)
+    let cover_url = "https://via.placeholder.com/180x240?text=No+Cover"; // fallback
     if (coverFile) {
       try {
         const coverResult = await uploadBufferToCloudinary(coverFile.buffer, {
