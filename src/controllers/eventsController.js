@@ -1,5 +1,6 @@
 // src/controllers/eventsController.js
-import { supabase } from "../config/supabase.js';
+import { supabase } from "../config/supabase.js";
+
 
 /**
  * List all events (public)
