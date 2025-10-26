@@ -1,3 +1,5 @@
+//src/controllers/ebooksController.js
+
 import { supabase } from "../config/supabase.js";
 import { uploadBufferToCloudinary } from "../utils/upload.js";
 
@@ -32,7 +34,9 @@ export async function uploadEbook(req, res) {
   try {
     const { title, author, series, series_order } = req.body;
 
-    if (!req.files?.pdf) return res.status(400).json({ error: "PDF file is required" });
+    if (!req.files?.pdf || !req.files.pdf[0]) {
+      return res.status(400).json({ error: "PDF file is required" });
+    }
 
     // Upload PDF
     const pdfResult = await uploadBufferToCloudinary(req.files.pdf[0].buffer, {
@@ -43,7 +47,7 @@ export async function uploadEbook(req, res) {
 
     // Optional cover upload
     let cover_url = null;
-    if (req.files?.cover) {
+    if (req.files?.cover && req.files.cover[0]) {
       const coverResult = await uploadBufferToCloudinary(req.files.cover[0].buffer, {
         folder: "ebooks/covers",
         resource_type: "image",
@@ -51,6 +55,7 @@ export async function uploadEbook(req, res) {
       cover_url = coverResult.secure_url;
     }
 
+    // Insert into Supabase
     const { data, error } = await supabase
       .from("ebooks")
       .insert([
