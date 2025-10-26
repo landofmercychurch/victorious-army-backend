@@ -1,42 +1,47 @@
 // src/routes/sermons.js
 import express from "express";
 import multer from "multer";
-import fs from "fs";
-import path from "path";
-import { fileURLToPath } from "url";
 import {
   listSermons,
   createSermon,
   deleteSermon,
+  updateSermon,
 } from "../controllers/sermonsController.js";
 import { requireAdmin } from "../middleware/adminAuth.js";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
 const router = express.Router();
 
-// TEMP folder for uploads
-const uploadDir = path.join(__dirname, "../../tmp");
-if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
-
-// Multer setup — store temporarily on disk
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, uploadDir),
-  filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
-    cb(null, uniqueSuffix + path.extname(file.originalname));
+// ============================================
+// 🎥 Multer — In-Memory Upload for Cloudinary
+// ============================================
+const upload = multer({
+  storage: multer.memoryStorage(), // no disk writes — streamed directly
+  limits: {
+    fileSize: 1 * 1024 * 1024 * 1024, // 1 GB limit
+  },
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = ["video/mp4", "video/webm", "video/mkv", "video/quicktime"];
+    if (!allowedTypes.includes(file.mimetype)) {
+      return cb(new Error("Unsupported video format. Please upload MP4 or WebM."));
+    }
+    cb(null, true);
   },
 });
 
-const upload = multer({
-  storage,
-  limits: { fileSize: 1024 * 1024 * 1024 }, // 1GB limit
-});
+// ============================================
+// 🛤️ Sermon Routes
+// ============================================
 
-// Routes
+// 📖 List all sermons
 router.get("/", listSermons);
+
+// 🎬 Create new sermon (admin only)
 router.post("/", requireAdmin, upload.single("video"), createSermon);
+
+// ✏️ Update existing sermon (title, description, YouTube URL)
+router.put("/:id", requireAdmin, updateSermon);
+
+// 🗑️ Delete sermon (admin only)
 router.delete("/:id", requireAdmin, deleteSermon);
 
 export default router;
