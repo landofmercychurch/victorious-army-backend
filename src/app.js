@@ -1,9 +1,9 @@
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
-import multer from "multer"; // ✅ For file uploads
 dotenv.config();
 
+// ===== ROUTES =====
 import dailyVerseRoutes from "./routes/dailyVerseRoutes.js";
 import eventsRoutes from "./routes/eventsRoutes.js";
 import memorialsRoutes from "./routes/memorialsRoutes.js";
@@ -31,40 +31,25 @@ const allowedOrigins = [
 app.use(
   cors({
     origin: (origin, cb) => {
-      if (!origin || allowedOrigins.includes(origin)) cb(null, true);
-      else cb(new Error("CORS blocked"));
+      // Allow requests with no origin (like Postman, SSR, etc.)
+      if (!origin) return cb(null, true);
+
+      if (allowedOrigins.includes(origin)) {
+        return cb(null, true);
+      }
+
+      console.warn(`🚫 CORS blocked request from: ${origin}`);
+      return cb(new Error("Not allowed by CORS"));
     },
     credentials: true,
   })
 );
 
 // ==========================================
-// ⚙️ Body Parser Limits — allow large form uploads
+// ⚙️ Body Parser Limits — allow large uploads
 // ==========================================
-app.use(express.json({ limit: "1gb" })); // handle large JSON if ever needed
+app.use(express.json({ limit: "1gb" }));
 app.use(express.urlencoded({ limit: "1gb", extended: true }));
-
-// ==========================================
-// 📂 Multer Configuration (for Cloudinary uploads)
-// ==========================================
-
-// Use in-memory storage for direct Cloudinary streaming
-const upload = multer({
-  storage: multer.memoryStorage(),
-  limits: {
-    fileSize: 1 * 1024 * 1024 * 1024, // 1GB max file size
-  },
-  fileFilter: (req, file, cb) => {
-    const allowed = ["video/mp4", "video/webm", "video/mkv", "video/quicktime"];
-    if (!allowed.includes(file.mimetype)) {
-      return cb(new Error("Unsupported file format. Use MP4 or WebM."));
-    }
-    cb(null, true);
-  },
-});
-
-// Make the upload middleware available globally (for example, sermons route)
-app.set("upload", upload);
 
 // ==========================================
 // 🛤️ Routes
@@ -72,7 +57,7 @@ app.set("upload", upload);
 app.use("/api/daily-verse", dailyVerseRoutes);
 app.use("/api/events", eventsRoutes);
 app.use("/api/memorials", memorialsRoutes);
-app.use("/api/sermons", sermonsRoutes); // sermonsRoutes will use multer memory upload
+app.use("/api/sermons", sermonsRoutes);
 app.use("/api/posts", postsRoutes);
 app.use("/api/admin/posts", adminPostsRoutes);
 app.use("/posts/preview", postsPreviewRoutes);
@@ -82,20 +67,22 @@ app.use("/api/admin/comments", adminCommentsRoutes);
 app.use("/api/likes", likesRoutes);
 
 // ==========================================
-// ❤️ Health Check
+// ❤️ Health Check Route
 // ==========================================
 app.get("/", (req, res) => {
-  res.json({ ok: true, message: "Church backend running" });
+  res.json({ ok: true, message: "Church backend running ✅" });
 });
 
 // ==========================================
-// 🚨 Global Error Handler (useful for multer errors)
+// 🚨 Global Error Handler (including Multer)
 // ==========================================
 app.use((err, req, res, next) => {
   console.error("❌ Server error:", err.message);
+
   if (err.message.includes("file too large")) {
     return res.status(413).json({ error: "Uploaded file exceeds 1GB limit" });
   }
+
   res.status(500).json({ error: err.message || "Internal Server Error" });
 });
 
