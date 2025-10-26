@@ -3,9 +3,8 @@ import { supabase } from "../config/supabase.js";
 import { uploadBufferToCloudinary } from "../utils/upload.js";
 import { PDFDocument } from "pdf-lib";
 
-
 /**
- * List all ebooks grouped by series
+ * List all ebooks, optionally filtered by series, grouped by series
  */
 export async function listEbooks(req, res) {
   try {
@@ -19,13 +18,14 @@ export async function listEbooks(req, res) {
 
     if (filterSeries) query = query.eq("series", filterSeries);
 
-    const { data, error } = await query;
+    const { data: ebooks, error } = await query;
     if (error) throw error;
 
-    const grouped = data.reduce((acc, ebook) => {
-      const seriesKey = ebook.series || "Standalone";
-      if (!acc[seriesKey]) acc[seriesKey] = [];
-      acc[seriesKey].push(ebook);
+    // Group by series
+    const grouped = ebooks.reduce((acc, ebook) => {
+      const key = ebook.series || "Standalone";
+      acc[key] = acc[key] || [];
+      acc[key].push(ebook);
       return acc;
     }, {});
 
@@ -37,49 +37,52 @@ export async function listEbooks(req, res) {
 }
 
 /**
- * Upload a new ebook with optional cover and metadata
+ * Upload a new ebook with optional cover
+ * Embeds metadata into PDF before upload
  */
 export async function uploadEbook(req, res) {
   try {
     const { title, author, series, series_order } = req.body;
+    const pdfFile = req.files?.pdf?.[0];
+    const coverFile = req.files?.cover?.[0];
 
-    if (!req.files?.pdf?.[0]) {
-      return res.status(400).json({ error: "PDF file is required" });
-    }
+    if (!pdfFile) return res.status(400).json({ error: "PDF file is required" });
 
-    // Embed metadata
-    const pdfBuffer = req.files.pdf[0].buffer;
-    const pdfDoc = await PDFDocument.load(pdfBuffer);
+    // Embed PDF metadata
+    const pdfDoc = await PDFDocument.load(pdfFile.buffer);
     pdfDoc.setTitle(title || "Untitled");
     pdfDoc.setAuthor(author || "Unknown");
     pdfDoc.setSubject(series || "Standalone");
-    pdfDoc.setKeywords(series_order ? [`Part ${series_order}`] : []);
+    if (series_order) pdfDoc.setKeywords([`Part ${series_order}`]);
 
-    const modifiedPdfBuffer = await pdfDoc.save();
+    const pdfBuffer = await pdfDoc.save();
 
-    const pdfResult = await uploadBufferToCloudinary(modifiedPdfBuffer, {
+    // Upload PDF to Cloudinary
+    const pdfResult = await uploadBufferToCloudinary(pdfBuffer, {
       folder: "ebooks",
       resource_type: "raw",
     });
 
     let cover_url = null;
-    if (req.files?.cover?.[0]) {
+    if (coverFile) {
       try {
-        const coverResult = await uploadBufferToCloudinary(req.files.cover[0].buffer, {
+        const coverResult = await uploadBufferToCloudinary(coverFile.buffer, {
           folder: "ebooks/covers",
           resource_type: "image",
         });
         cover_url = coverResult.secure_url;
       } catch (err) {
-        console.warn("[uploadEbook] Cover upload failed", err);
+        console.warn("[uploadEbook] Cover upload failed:", err.message);
       }
     }
 
-    const order = series_order ? parseInt(series_order) : 0;
+    const order = series_order ? parseInt(series_order, 10) : 0;
 
     const { data, error } = await supabase
       .from("ebooks")
-      .insert([{ title, author, series: series || null, series_order: order, pdf_url: pdfResult.secure_url, cover_url }])
+      .insert([
+        { title, author, series: series || null, series_order: order, pdf_url: pdfResult.secure_url, cover_url },
+      ])
       .select()
       .single();
 
@@ -93,7 +96,7 @@ export async function uploadEbook(req, res) {
 }
 
 /**
- * Delete ebook by id or series
+ * Delete ebook by ID or by series
  */
 export async function deleteEbook(req, res) {
   try {
@@ -118,7 +121,7 @@ export async function deleteEbook(req, res) {
 }
 
 /**
- * Download ebook with correct filename
+ * Download ebook with a safe filename
  */
 export async function downloadEbook(req, res) {
   try {
@@ -128,8 +131,8 @@ export async function downloadEbook(req, res) {
 
     const response = await fetch(ebook.pdf_url);
     if (!response.ok) throw new Error("Failed to fetch PDF");
-    const buffer = await response.arrayBuffer();
 
+    const buffer = await response.arrayBuffer();
     const safeTitle = (ebook.title || "ebook").replace(/[/\\?%*:|"<>]/g, "-").substring(0, 100);
 
     res.setHeader("Content-Type", "application/pdf");
@@ -140,4 +143,3 @@ export async function downloadEbook(req, res) {
     res.status(500).json({ error: "Server error" });
   }
 }
-
