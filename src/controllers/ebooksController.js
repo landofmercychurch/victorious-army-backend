@@ -1,27 +1,36 @@
-//src/controllers/ebooksController.js
+// src/controllers/ebooksController.js
 
 import { supabase } from "../config/supabase.js";
 import { uploadBufferToCloudinary } from "../utils/upload.js";
 
 /**
- * List all ebooks, optionally filtered by series
+ * List all ebooks, grouped by series
  */
 export async function listEbooks(req, res) {
   try {
-    const { series } = req.query;
+    const { series: filterSeries } = req.query;
 
+    // Fetch all ebooks, optionally filtered by series
     let query = supabase
       .from("ebooks")
       .select("*")
       .order("series_order", { ascending: true })
       .order("created_at", { ascending: false });
 
-    if (series) query = query.eq("series", series);
+    if (filterSeries) query = query.eq("series", filterSeries);
 
     const { data, error } = await query;
     if (error) throw error;
 
-    return res.json(data);
+    // Group ebooks by series
+    const grouped = data.reduce((acc, ebook) => {
+      const seriesKey = ebook.series || "Standalone";
+      if (!acc[seriesKey]) acc[seriesKey] = [];
+      acc[seriesKey].push(ebook);
+      return acc;
+    }, {});
+
+    return res.json(grouped);
   } catch (err) {
     return res.status(500).json({ error: err.message });
   }
