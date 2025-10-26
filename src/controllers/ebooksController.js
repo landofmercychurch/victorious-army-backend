@@ -19,22 +19,20 @@ export async function listEbooks(req, res) {
     const { data, error } = await query;
     if (error) throw error;
 
-    res.json(data);
+    return res.json(data);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: err.message });
   }
 }
 
 /**
- * Upload a new ebook (PDF required) with optional cover image and series
+ * Upload a new ebook with optional cover image and series
  */
 export async function uploadEbook(req, res) {
   try {
     const { title, author, series, series_order } = req.body;
 
-    if (!title || !req.files?.pdf) {
-      return res.status(400).json({ error: "Title and PDF file are required" });
-    }
+    if (!req.files?.pdf) return res.status(400).json({ error: "PDF file is required" });
 
     // Upload PDF
     const pdfResult = await uploadBufferToCloudinary(req.files.pdf[0].buffer, {
@@ -53,16 +51,14 @@ export async function uploadEbook(req, res) {
       cover_url = coverResult.secure_url;
     }
 
-    const order = series_order ? parseInt(series_order) : null;
-
     const { data, error } = await supabase
       .from("ebooks")
       .insert([
         {
           title,
-          author: author || null,
+          author,
           series: series || null,
-          series_order: isNaN(order) ? null : order,
+          series_order: series_order ? parseInt(series_order) : null,
           pdf_url,
           cover_url,
         },
@@ -72,42 +68,39 @@ export async function uploadEbook(req, res) {
 
     if (error) throw error;
 
-    res.status(201).json(data);
+    return res.status(201).json(data);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: err.message });
   }
 }
 
 /**
- * Delete a single ebook by ID
+ * Delete a single ebook by id OR all ebooks in a series
  */
 export async function deleteEbook(req, res) {
   try {
     const { id } = req.params;
-    if (!id) return res.status(400).json({ error: "Ebook ID is required" });
+    const { series } = req.query;
 
-    const { error } = await supabase.from("ebooks").delete().eq("id", id);
+    if (!id && !series) {
+      return res.status(400).json({ error: "Provide an ebook ID or a series name to delete" });
+    }
+
+    let query = supabase.from("ebooks");
+
+    if (id) query = query.eq("id", id);
+    else if (series) query = query.eq("series", series);
+
+    const { data, error } = await query.delete().select();
+
     if (error) throw error;
 
-    res.json({ message: "Ebook deleted successfully" });
+    if (!data || data.length === 0) {
+      return res.status(404).json({ error: "No ebook(s) found to delete" });
+    }
+
+    return res.json({ message: `${data.length} ebook(s) deleted successfully`, data });
   } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-}
-
-/**
- * Delete all ebooks in a series
- */
-export async function deleteEbookSeries(req, res) {
-  try {
-    const { series } = req.params;
-    if (!series) return res.status(400).json({ error: "Series name is required" });
-
-    const { error } = await supabase.from("ebooks").delete().eq("series", series);
-    if (error) throw error;
-
-    res.json({ message: `All ebooks in series "${series}" deleted successfully` });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: err.message });
   }
 }
