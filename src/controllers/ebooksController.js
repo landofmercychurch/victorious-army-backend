@@ -2,7 +2,7 @@
 import { supabase } from "../config/supabase.js";
 import { uploadBufferToCloudinary } from "../utils/upload.js";
 import { PDFDocument } from "pdf-lib";
-import fetch from "node-fetch";
+
 
 /**
  * List all ebooks grouped by series
