@@ -24,7 +24,7 @@ export async function listEbooks(req, res) {
     // Group by series
     const grouped = ebooks.reduce((acc, ebook) => {
       const key = ebook.series || "Standalone";
-      acc[key] = acc[key] || [];
+      if (!acc[key]) acc[key] = [];
       acc[key].push(ebook);
       return acc;
     }, {});
@@ -81,7 +81,14 @@ export async function uploadEbook(req, res) {
     const { data, error } = await supabase
       .from("ebooks")
       .insert([
-        { title, author, series: series || null, series_order: order, pdf_url: pdfResult.secure_url, cover_url },
+        {
+          title,
+          author,
+          series: series || null,
+          series_order: order,
+          pdf_url: pdfResult.secure_url,
+          cover_url,
+        },
       ])
       .select()
       .single();
@@ -103,13 +110,17 @@ export async function deleteEbook(req, res) {
     const { id } = req.params;
     const { series } = req.query;
 
-    if (!id && !series) return res.status(400).json({ error: "Provide an ebook ID or series name" });
+    if (!id && !series)
+      return res.status(400).json({ error: "Provide an ebook ID or series name" });
 
-    let query = supabase.from("ebooks");
-    if (id) query = query.eq("id", id);
-    if (series) query = query.eq("series", series);
+    let result;
+    if (id) {
+      result = await supabase.from("ebooks").delete().eq("id", id).select();
+    } else if (series) {
+      result = await supabase.from("ebooks").delete().eq("series", series).select();
+    }
 
-    const { data, error } = await query.delete().select();
+    const { data, error } = result;
     if (error) throw error;
     if (!data?.length) return res.status(404).json({ error: "No ebook(s) found" });
 
@@ -126,7 +137,13 @@ export async function deleteEbook(req, res) {
 export async function downloadEbook(req, res) {
   try {
     const { id } = req.params;
-    const { data: ebook, error } = await supabase.from("ebooks").select("*").eq("id", id).single();
+
+    const { data: ebook, error } = await supabase
+      .from("ebooks")
+      .select("*")
+      .eq("id", id)
+      .single();
+
     if (error || !ebook) return res.status(404).json({ error: "Ebook not found" });
 
     const response = await fetch(ebook.pdf_url);
