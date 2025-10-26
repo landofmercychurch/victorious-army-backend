@@ -5,14 +5,16 @@ import cloudinary from "../config/cloudinary.js";
  *
  * Handles:
  *  - Large videos (up to ~1GB safely)
- *  - Auto compression and HLS streaming for adaptive playback
+ *  - Auto compression and WebM conversion for lightweight playback
+ *  - Optional HLS streaming
  *  - Images with smart optimisation
  *
  * Example:
  * await uploadBufferToCloudinary(file.buffer, {
  *   folder: "sermons",
  *   resource_type: "video",
- *   hls: true
+ *   hls: true,
+ *   originalFormat: file.mimetype // to detect .webm input
  * });
  */
 
@@ -22,34 +24,44 @@ export function uploadBufferToCloudinary(buffer, options = {}) {
       folder = "uploads",
       resource_type = "auto",
       hls = false, // if true, generate HLS streaming version
+      originalFormat = "", // detect if it's already WebM
     } = options;
 
-    // ✅ Cloudinary upload settings
+    // ✅ Setup Cloudinary upload settings
     const uploadOptions = {
       folder,
       resource_type,
       use_filename: true,
       unique_filename: true,
       overwrite: false,
-      timeout: 1800000, // 30 minutes (for large videos)
+      timeout: 1800000, // 30 minutes (for large uploads)
       eager: [],
       eager_async: false,
     };
 
     // ✅ Handle video uploads
     if (resource_type === "video") {
-      uploadOptions.chunk_size = 6_000_000; // ~6MB chunks for large uploads
+      uploadOptions.chunk_size = 6_000_000; // ~6MB chunks
 
-      // Convert and optimise to MP4 for playback
-      uploadOptions.eager.push({
-        transformation: [
-          { fetch_format: "auto", quality: "auto", vc: "auto", h: 720 },
-        ],
-        format: "mp4",
-      });
+      const isWebM =
+        originalFormat?.includes("webm") ||
+        originalFormat?.toLowerCase().endsWith(".webm");
 
-      // Add HLS streaming if requested
+      if (!isWebM) {
+        // 🔄 Convert non-WebM videos to WebM
+        uploadOptions.eager.push({
+          transformation: [
+            { fetch_format: "webm", quality: "auto", vc: "vp9", h: 720 },
+          ],
+          format: "webm",
+        });
+      } else {
+        // 🚫 Keep original WebM without transformation
+        console.log("⚙️ File is already WebM — skipping conversion.");
+      }
+
       if (hls) {
+        // 🎞️ Optional HLS adaptive streaming
         uploadOptions.eager.push({
           streaming_profile: "auto",
           format: "m3u8",
@@ -64,16 +76,23 @@ export function uploadBufferToCloudinary(buffer, options = {}) {
       ];
     }
 
-    // ✅ Upload stream
+    console.log("☁️ Uploading to Cloudinary:", {
+      folder,
+      type: resource_type,
+      format: originalFormat,
+      convertToWebM: resource_type === "video" && !originalFormat.includes("webm"),
+    });
+
+    // ✅ Stream upload
     const uploadStream = cloudinary.uploader.upload_stream(
       uploadOptions,
       (err, result) => {
         if (err) {
           console.error("[CLOUDINARY ERROR]", err);
-          reject(new Error(`Cloudinary upload failed: ${err.message}`));
-        } else {
-          resolve(result);
+          return reject(new Error(`Cloudinary upload failed: ${err.message}`));
         }
+        console.log("✅ Cloudinary upload complete:", result.public_id);
+        resolve(result);
       }
     );
 
