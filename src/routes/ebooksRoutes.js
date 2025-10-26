@@ -1,6 +1,6 @@
 import express from "express";
 import multer from "multer";
-import { listEbooks, uploadEbook, downloadEbook } from "../controllers/ebooksController.js";
+import { listEbooks, uploadEbook, downloadEbook, deleteEbook } from "../controllers/ebooksController.js";
 import { requireAdmin } from "../middleware/adminAuth.js";
 
 const router = express.Router();
@@ -27,7 +27,8 @@ router.post(
 
 // Download PDF with correct filename and metadata
 router.get("/download/:id", downloadEbook);
-// **Add DELETE route for admin**
+
+// DELETE ebook by ID (admin only)
 router.delete("/:id", requireAdmin, deleteEbook);
 
 export default router;
