@@ -9,7 +9,9 @@ export async function listEbooks(req, res) {
   try {
     const { series: filterSeries } = req.query;
 
-    // Fetch ebooks from Supabase
+    console.log("[listEbooks] Fetching ebooks. Filter series:", filterSeries);
+
+    // Fetch all ebooks, optionally filtered by series
     let query = supabase
       .from("ebooks")
       .select("*")
@@ -21,16 +23,19 @@ export async function listEbooks(req, res) {
     const { data, error } = await query;
     if (error) throw error;
 
-    // Group by series, "Standalone" if no series
+    // Group ebooks by series
     const grouped = data.reduce((acc, ebook) => {
-      const key = ebook.series || "Standalone";
-      if (!acc[key]) acc[key] = [];
-      acc[key].push(ebook);
+      const seriesKey = ebook.series || "Standalone";
+      if (!acc[seriesKey]) acc[seriesKey] = [];
+      acc[seriesKey].push(ebook);
       return acc;
     }, {});
 
+    console.log("[listEbooks] Ebooks grouped by series:", Object.keys(grouped));
+
     return res.json(grouped);
   } catch (err) {
+    console.error("[listEbooks] Error:", err);
     return res.status(500).json({ error: err.message });
   }
 }
@@ -42,7 +47,9 @@ export async function uploadEbook(req, res) {
   try {
     const { title, author, series, series_order } = req.body;
 
-    if (!req.files?.pdf?.[0]) {
+    console.log("[uploadEbook] Upload request received:", { title, author, series, series_order });
+
+    if (!req.files?.pdf || !req.files.pdf[0]) {
       return res.status(400).json({ error: "PDF file is required" });
     }
 
@@ -51,9 +58,11 @@ export async function uploadEbook(req, res) {
       folder: "ebooks",
       resource_type: "raw",
     });
+    const pdf_url = pdfResult.secure_url;
 
+    // Optional cover upload
     let cover_url = null;
-    if (req.files?.cover?.[0]) {
+    if (req.files?.cover && req.files.cover[0]) {
       const coverResult = await uploadBufferToCloudinary(req.files.cover[0].buffer, {
         folder: "ebooks/covers",
         resource_type: "image",
@@ -61,24 +70,32 @@ export async function uploadEbook(req, res) {
       cover_url = coverResult.secure_url;
     }
 
+    // Default series_order to 0 if not provided
+    const order = series_order ? parseInt(series_order) : 0;
+
     // Insert into Supabase
     const { data, error } = await supabase
       .from("ebooks")
-      .insert([{
-        title,
-        author,
-        series: series || null,
-        series_order: series_order ? parseInt(series_order) : null,
-        pdf_url: pdfResult.secure_url,
-        cover_url,
-      }])
+      .insert([
+        {
+          title,
+          author,
+          series: series || null,
+          series_order: order,
+          pdf_url,
+          cover_url,
+        },
+      ])
       .select()
       .single();
 
     if (error) throw error;
 
+    console.log("[uploadEbook] Ebook uploaded successfully:", data);
+
     return res.status(201).json(data);
   } catch (err) {
+    console.error("[uploadEbook] Error:", err);
     return res.status(500).json({ error: err.message });
   }
 }
@@ -91,23 +108,30 @@ export async function deleteEbook(req, res) {
     const { id } = req.params;
     const { series } = req.query;
 
+    console.log("[deleteEbook] Delete request:", { id, series });
+
     if (!id && !series) {
       return res.status(400).json({ error: "Provide an ebook ID or a series name to delete" });
     }
 
     let query = supabase.from("ebooks");
+
     if (id) query = query.eq("id", id);
-    if (series) query = query.eq("series", series);
+    else if (series) query = query.eq("series", series);
 
     const { data, error } = await query.delete().select();
+
     if (error) throw error;
 
     if (!data || data.length === 0) {
       return res.status(404).json({ error: "No ebook(s) found to delete" });
     }
 
+    console.log("[deleteEbook] Deleted ebooks:", data.length);
+
     return res.json({ message: `${data.length} ebook(s) deleted successfully`, data });
   } catch (err) {
+    console.error("[deleteEbook] Error:", err);
     return res.status(500).json({ error: err.message });
   }
 }
