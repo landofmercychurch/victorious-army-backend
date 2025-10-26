@@ -13,6 +13,7 @@ export async function listEvents(req, res) {
       .order("start_at", { ascending: false });
 
     if (error) throw error;
+
     console.log(`✅ Found ${data.length} events`);
     res.json(data);
   } catch (err) {
@@ -30,7 +31,6 @@ export async function createEvent(req, res) {
     console.log("📝 Creating event:", { title, start_at });
 
     if (!title || !start_at) {
-      console.warn("⚠️ Missing required fields for event creation");
       return res.status(400).json({ error: "title and start_at required" });
     }
 
@@ -85,12 +85,15 @@ export async function deleteEvent(req, res) {
     const { id } = req.params;
     console.log("🗑️ Deleting event:", id);
 
+    // Add `.select()` to get deleted row and prevent false 404
     const { data, error } = await supabase
       .from("events")
       .delete()
-      .eq("id", id);
+      .eq("id", id)
+      .select();
 
     if (error) throw error;
+
     if (!data || data.length === 0) {
       console.warn("⚠️ Event not found for deletion:", id);
       return res.status(404).json({ error: "Event not found" });
