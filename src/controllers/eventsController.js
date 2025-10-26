@@ -1,9 +1,8 @@
 // src/controllers/eventsController.js
 import { supabase } from "../config/supabase.js";
 
-
 /**
- * List all events (public)
+ * Public: List all events
  */
 export async function listEvents(req, res) {
   try {
@@ -69,6 +68,7 @@ export async function updateEvent(req, res) {
       .single();
 
     if (error) throw error;
+    if (!data) return res.status(404).json({ error: "Event not found" });
 
     console.log("✅ Event updated:", data);
     res.json(data);
@@ -86,15 +86,19 @@ export async function deleteEvent(req, res) {
     const { id } = req.params;
     console.log("🗑️ Deleting event:", id);
 
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from("events")
       .delete()
       .eq("id", id);
 
     if (error) throw error;
+    if (!data || data.length === 0) {
+      console.warn("⚠️ Event not found for deletion:", id);
+      return res.status(404).json({ error: "Event not found" });
+    }
 
     console.log("✅ Event deleted successfully:", id);
-    res.json({ success: true, message: "Event deleted successfully" });
+    res.json({ success: true, message: "Event deleted successfully", data });
   } catch (err) {
     console.error("❌ Error deleting event:", err);
     res.status(500).json({ error: err.message });
