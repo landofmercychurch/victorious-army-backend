@@ -1,6 +1,7 @@
 // src/controllers/ebooksController.js
 import { supabase } from "../config/supabase.js";
 import { uploadBufferToCloudinary } from "../utils/upload.js";
+import { PDFDocument } from "pdf-lib"; // npm install pdf-lib
 
 /**
  * List all ebooks, grouped by series
@@ -8,10 +9,8 @@ import { uploadBufferToCloudinary } from "../utils/upload.js";
 export async function listEbooks(req, res) {
   try {
     const { series: filterSeries } = req.query;
-
     console.log("[listEbooks] Fetching ebooks. Filter series:", filterSeries);
 
-    // Fetch all ebooks, optionally filtered by series
     let query = supabase
       .from("ebooks")
       .select("*")
@@ -32,7 +31,6 @@ export async function listEbooks(req, res) {
     }, {});
 
     console.log("[listEbooks] Ebooks grouped by series:", Object.keys(grouped));
-
     return res.json(grouped);
   } catch (err) {
     console.error("[listEbooks] Error:", err);
@@ -42,19 +40,30 @@ export async function listEbooks(req, res) {
 
 /**
  * Upload a new ebook with optional cover image and series
+ * Embeds metadata into PDF
  */
 export async function uploadEbook(req, res) {
   try {
     const { title, author, series, series_order } = req.body;
-
     console.log("[uploadEbook] Upload request received:", { title, author, series, series_order });
 
     if (!req.files?.pdf || !req.files.pdf[0]) {
       return res.status(400).json({ error: "PDF file is required" });
     }
 
-    // Upload PDF
-    const pdfResult = await uploadBufferToCloudinary(req.files.pdf[0].buffer, {
+    // --- Embed PDF metadata ---
+    const pdfBuffer = req.files.pdf[0].buffer;
+    const pdfDoc = await PDFDocument.load(pdfBuffer);
+
+    pdfDoc.setTitle(title || "Untitled");
+    pdfDoc.setAuthor(author || "Unknown");
+    pdfDoc.setSubject(series || "Standalone");
+    pdfDoc.setKeywords(series_order ? [`Part ${series_order}`] : []);
+
+    const modifiedPdfBuffer = await pdfDoc.save();
+
+    // Upload PDF with metadata
+    const pdfResult = await uploadBufferToCloudinary(modifiedPdfBuffer, {
       folder: "ebooks",
       resource_type: "raw",
     });
@@ -70,21 +79,13 @@ export async function uploadEbook(req, res) {
       cover_url = coverResult.secure_url;
     }
 
-    // Default series_order to 0 if not provided
     const order = series_order ? parseInt(series_order) : 0;
 
     // Insert into Supabase
     const { data, error } = await supabase
       .from("ebooks")
       .insert([
-        {
-          title,
-          author,
-          series: series || null,
-          series_order: order,
-          pdf_url,
-          cover_url,
-        },
+        { title, author, series: series || null, series_order: order, pdf_url, cover_url },
       ])
       .select()
       .single();
@@ -92,7 +93,6 @@ export async function uploadEbook(req, res) {
     if (error) throw error;
 
     console.log("[uploadEbook] Ebook uploaded successfully:", data);
-
     return res.status(201).json(data);
   } catch (err) {
     console.error("[uploadEbook] Error:", err);
@@ -107,7 +107,6 @@ export async function deleteEbook(req, res) {
   try {
     const { id } = req.params;
     const { series } = req.query;
-
     console.log("[deleteEbook] Delete request:", { id, series });
 
     if (!id && !series) {
@@ -120,7 +119,6 @@ export async function deleteEbook(req, res) {
     else if (series) query = query.eq("series", series);
 
     const { data, error } = await query.delete().select();
-
     if (error) throw error;
 
     if (!data || data.length === 0) {
@@ -128,7 +126,6 @@ export async function deleteEbook(req, res) {
     }
 
     console.log("[deleteEbook] Deleted ebooks:", data.length);
-
     return res.json({ message: `${data.length} ebook(s) deleted successfully`, data });
   } catch (err) {
     console.error("[deleteEbook] Error:", err);
