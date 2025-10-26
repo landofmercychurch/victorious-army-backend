@@ -1,7 +1,6 @@
-// src/routes/ebooksRoutes.js
 import express from "express";
 import multer from "multer";
-import { listEbooks, uploadEbook } from "../controllers/ebooksController.js";
+import { listEbooks, uploadEbook, downloadEbook } from "../controllers/ebooksController.js";
 import { requireAdmin } from "../middleware/adminAuth.js";
 
 const router = express.Router();
@@ -25,5 +24,8 @@ router.post(
   ]),
   uploadEbook
 );
+
+// Download PDF with correct filename and metadata
+router.get("/download/:id", downloadEbook);
 
 export default router;
