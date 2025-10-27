@@ -1,12 +1,17 @@
-import cloudinary from "../config/cloudinary.js";
+// src/utils/upload.js
+import { v2 as cloudinary } from "cloudinary";
+import streamifier from "streamifier";
 
 /**
- * Upload a large video or image buffer to Cloudinary with progress tracking
- * @param {Buffer} buffer
- * @param {Object} options
- * @param {Function} [onProgress] - Optional progress callback (0–100)
+ * Uploads a video or image buffer to Cloudinary safely, with progress tracking.
+ * Supports large files via streaming (no 413 or JSON errors).
+ *
+ * @param {Buffer} buffer - The file buffer (from multer.memoryStorage()).
+ * @param {Object} options - Upload options (folder, resource_type, etc.).
+ * @param {Function} [onProgress] - Optional callback(percent) for upload progress.
+ * @returns {Promise<Object>} - Resolves with Cloudinary upload result.
  */
-export function uploadBufferToCloudinary(buffer, options = {}, onProgress) {
+export async function uploadBufferToCloudinary(buffer, options = {}, onProgress) {
   return new Promise((resolve, reject) => {
     const {
       folder = "uploads",
@@ -21,18 +26,18 @@ export function uploadBufferToCloudinary(buffer, options = {}, onProgress) {
       use_filename: true,
       unique_filename: true,
       overwrite: false,
-      timeout: 1800000, // 30 mins
+      timeout: 1800000, // 30 minutes
       eager: [],
     };
 
-    // Handle video
+    // Configure video transformation options
     if (resource_type === "video") {
-      uploadOptions.chunk_size = 6_000_000; // 6MB
+      uploadOptions.chunk_size = 10_000_000; // 10MB chunks (safe size)
       const isWebM = originalFormat.toLowerCase().endsWith(".webm");
 
       uploadOptions.eager.push({
         transformation: isWebM
-          ? [] // keep as is
+          ? []
           : [{ fetch_format: "webm", quality: "auto", vc: "vp9", h: 720 }],
         format: "webm",
       });
@@ -45,33 +50,51 @@ export function uploadBufferToCloudinary(buffer, options = {}, onProgress) {
       }
     }
 
-    // Handle image
+    // Configure image optimization
     if (resource_type === "image") {
       uploadOptions.transformation = [{ fetch_format: "auto", quality: "auto" }];
     }
 
-    const uploadStream = cloudinary.uploader.upload_stream(
-      uploadOptions,
-      (err, result) => {
-        if (err) reject(new Error(`Cloudinary upload failed: ${err.message}`));
-        else resolve(result);
-      }
-    );
+    try {
+      // ✅ Create Cloudinary upload stream
+      const uploadStream = cloudinary.uploader.upload_stream(
+        uploadOptions,
+        (error, result) => {
+          if (error) {
+            console.error("❌ Cloudinary error:", error);
+            return reject(
+              new Error(`Cloudinary upload failed: ${error.message}`)
+            );
+          }
+          if (!result || !result.secure_url) {
+            return reject(
+              new Error("Cloudinary returned invalid or empty response.")
+            );
+          }
+          resolve(result);
+        }
+      );
 
-    // Track progress
-    const CHUNK = 1024 * 256; // 256KB
-    let uploaded = 0;
+      // ✅ Convert buffer to stream and pipe it directly
+      const readStream = streamifier.createReadStream(buffer);
 
-    for (let i = 0; i < buffer.length; i += CHUNK) {
-      const chunk = buffer.subarray(i, i + CHUNK);
-      uploadStream.write(chunk);
-      uploaded += chunk.length;
+      // Track upload progress if callback is provided
       if (onProgress) {
-        const percent = Math.round((uploaded / buffer.length) * 100);
-        onProgress(percent);
-      }
-    }
+        let uploaded = 0;
+        const total = buffer.length;
 
-    uploadStream.end();
+        readStream.on("data", (chunk) => {
+          uploaded += chunk.length;
+          const percent = Math.round((uploaded / total) * 100);
+          onProgress(percent);
+        });
+      }
+
+      // Start streaming to Cloudinary
+      readStream.pipe(uploadStream);
+    } catch (err) {
+      console.error("❌ Unexpected error in uploadBufferToCloudinary:", err);
+      reject(err);
+    }
   });
 }
