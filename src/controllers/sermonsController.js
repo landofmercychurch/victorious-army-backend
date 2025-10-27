@@ -1,3 +1,4 @@
+// src/controllers/sermonsController.js
 import { supabase } from "../config/supabase.js";
 import { uploadBufferToCloudinary } from "../utils/upload.js";
 import cloudinary from "../config/cloudinary.js";
@@ -48,15 +49,26 @@ export async function createSermon(req, res) {
       mimetype: req.file.mimetype,
     });
 
-    // ✅ Set up Server-Sent Events for progress updates
+    // ✅ Prepare Server-Sent Events (SSE)
     res.writeHead(200, {
       "Content-Type": "text/event-stream",
       "Cache-Control": "no-cache",
       Connection: "keep-alive",
     });
 
+    // Handle client disconnection gracefully
+    req.on("close", () => {
+      console.log("❌ Client closed connection before upload completed.");
+    });
+
+    // Send progress events
     const sendProgress = (percent) => {
-      res.write(`data: ${JSON.stringify({ progress: percent })}\n\n`);
+      const progressEvent = {
+        type: "progress",
+        percent,
+        message: `Upload ${percent}% complete`,
+      };
+      res.write(`data: ${JSON.stringify(progressEvent)}\n\n`);
     };
 
     // --- Upload to Cloudinary with progress ---
@@ -69,7 +81,7 @@ export async function createSermon(req, res) {
         hls: true,
         originalFormat: req.file.originalname || req.file.mimetype,
       },
-      sendProgress // callback
+      sendProgress
     );
 
     console.log("✅ Cloudinary upload complete:", uploadResult.public_id);
@@ -90,7 +102,9 @@ export async function createSermon(req, res) {
     // --- Generate additional URLs ---
     const cloudName = process.env.CLOUDINARY_CLOUD_NAME;
     const hls_url = `https://res.cloudinary.com/${cloudName}/video/upload/fl_streaming:auto/${public_id}.m3u8`;
-    const thumbnail_url = `https://res.cloudinary.com/${cloudName}/video/upload/so_3,w_640,h_360,c_fill/${public_id}.jpg`;
+    const thumbnail_url =
+      `https://res.cloudinary.com/${cloudName}/video/upload/so_3,w_640,h_360,c_fill/${public_id}.jpg` ||
+      "/images/default-thumbnail.jpg";
 
     // --- Save to Supabase ---
     const { data, error } = await supabase
@@ -115,13 +129,25 @@ export async function createSermon(req, res) {
     if (error) throw error;
 
     // ✅ Final event to close connection
-    res.write(`data: ${JSON.stringify({ progress: 100, done: true, sermon: data })}\n\n`);
+    const completeEvent = {
+      type: "complete",
+      progress: 100,
+      done: true,
+      sermon: data,
+    };
+    res.write(`data: ${JSON.stringify(completeEvent)}\n\n`);
     res.end();
 
     console.log("✅ Sermon successfully saved:", data.id);
   } catch (err) {
-    console.error("❌ Error creating sermon:", err);
-    res.write(`data: ${JSON.stringify({ error: err.message })}\n\n`);
+    console.error("❌ Error creating sermon:", {
+      message: err.message,
+      stack: err.stack,
+      file: req.file?.originalname,
+    });
+
+    // Send error event to SSE stream
+    res.write(`data: ${JSON.stringify({ type: "error", error: err.message })}\n\n`);
     res.end();
   }
 }
