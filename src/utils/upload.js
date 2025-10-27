@@ -35,7 +35,7 @@ export async function uploadBufferToCloudinary(buffer, options = {}, onProgress)
       { transformation: [{ fetch_format: "mp4", quality: "auto", h: 720 }], format: "mp4" },
       { transformation: [{ fetch_format: "mov", quality: "auto", h: 720 }], format: "mov" },
     ];
-    uploadOptions.chunk_size = 10_000_000; // 10 MB
+    uploadOptions.chunk_size = 10_000_000; // 10 MB per chunk
   }
 
   return new Promise((resolve, reject) => {
