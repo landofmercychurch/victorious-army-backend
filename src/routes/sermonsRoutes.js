@@ -1,4 +1,3 @@
-// src/routes/sermons.js
 import express from "express";
 import multer from "multer";
 import {
@@ -12,17 +11,28 @@ import { requireAdmin } from "../middleware/adminAuth.js";
 const router = express.Router();
 
 // ============================================
-// 🎥 Multer — In-Memory Upload for Cloudinary
+// 🎥 Multer — In-Memory Upload for Short Clips
 // ============================================
+
 const upload = multer({
-  storage: multer.memoryStorage(), // no disk writes — streamed directly
+  storage: multer.memoryStorage(), // keep small files in memory
   limits: {
-    fileSize: 1 * 1024 * 1024 * 1024, // 1 GB limit
+    fileSize: 300 * 1024 * 1024, // ⛔ limit: 300MB max (safe for memory)
   },
   fileFilter: (req, file, cb) => {
-    const allowedTypes = ["video/mp4", "video/webm", "video/mkv", "video/quicktime"];
+    const allowedTypes = [
+      "video/mp4",
+      "video/webm",
+      "video/quicktime", // .mov
+      "image/jpeg",
+      "image/png",
+      "image/webp",
+    ];
+
     if (!allowedTypes.includes(file.mimetype)) {
-      return cb(new Error("Unsupported video format. Please upload MP4 or WebM."));
+      return cb(
+        new Error("Unsupported file type. Please upload MP4, WebM, MOV, JPG, or PNG.")
+      );
     }
     cb(null, true);
   },
@@ -38,10 +48,10 @@ router.get("/", listSermons);
 // 🎬 Create new sermon (admin only)
 router.post("/", requireAdmin, upload.single("video"), createSermon);
 
-// ✏️ Update existing sermon (title, description, YouTube URL)
+// ✏️ Update existing sermon
 router.put("/:id", requireAdmin, updateSermon);
 
-// 🗑️ Delete sermon (admin only)
+// 🗑️ Delete sermon
 router.delete("/:id", requireAdmin, deleteSermon);
 
 export default router;
