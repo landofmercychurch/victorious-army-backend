@@ -3,20 +3,19 @@ import { v2 as cloudinary } from "cloudinary";
 import streamifier from "streamifier";
 
 /**
- * Uploads a video or image buffer to Cloudinary safely, with progress tracking.
- * Supports large files via streaming (no 413 or JSON errors).
+ * Safely uploads a video (or image) buffer to Cloudinary via stream.
+ * Supports short and medium uploads, avoids malformed JSON and client disconnect errors.
  *
- * @param {Buffer} buffer - The file buffer (from multer.memoryStorage()).
+ * @param {Buffer} buffer - The file buffer from multer.memoryStorage().
  * @param {Object} options - Upload options (folder, resource_type, etc.).
  * @param {Function} [onProgress] - Optional callback(percent) for upload progress.
- * @returns {Promise<Object>} - Resolves with Cloudinary upload result.
+ * @returns {Promise<Object>} Cloudinary upload result (secure_url, public_id, etc.).
  */
 export async function uploadBufferToCloudinary(buffer, options = {}, onProgress) {
   return new Promise((resolve, reject) => {
     const {
       folder = "uploads",
-      resource_type = "auto",
-      hls = false,
+      resource_type = "video", // explicitly default to video for sermons
       originalFormat = "",
     } = options;
 
@@ -26,15 +25,16 @@ export async function uploadBufferToCloudinary(buffer, options = {}, onProgress)
       use_filename: true,
       unique_filename: true,
       overwrite: false,
-      timeout: 1800000, // 30 minutes
+      timeout: 600000, // 10 minutes max
       eager: [],
     };
 
-    // Configure video transformation options
+    // ✅ Configure video streaming upload safely
     if (resource_type === "video") {
-      uploadOptions.chunk_size = 10_000_000; // 10MB chunks (safe size)
+      uploadOptions.chunk_size = 10_000_000; // 10 MB chunks (safe and efficient)
       const isWebM = originalFormat.toLowerCase().endsWith(".webm");
 
+      // Convert video to webm for web optimisation (non-HLS)
       uploadOptions.eager.push({
         transformation: isWebM
           ? []
@@ -42,43 +42,37 @@ export async function uploadBufferToCloudinary(buffer, options = {}, onProgress)
         format: "webm",
       });
 
-      if (hls) {
-        uploadOptions.eager.push({
-          streaming_profile: "auto",
-          format: "m3u8",
-        });
-      }
+      // ❌ Removed HLS eager transform to avoid "#EXTM3U" JSON parsing issue
+      // ✅ You can manually create the HLS URL later using:
+      // const hls_url = `https://res.cloudinary.com/${cloudName}/video/upload/fl_streaming:auto/${public_id}.m3u8`;
     }
 
-    // Configure image optimization
+    // ✅ Image optimisation (not needed for sermons but kept safe)
     if (resource_type === "image") {
       uploadOptions.transformation = [{ fetch_format: "auto", quality: "auto" }];
     }
 
     try {
-      // ✅ Create Cloudinary upload stream
-      const uploadStream = cloudinary.uploader.upload_stream(
-        uploadOptions,
-        (error, result) => {
-          if (error) {
-            console.error("❌ Cloudinary error:", error);
-            return reject(
-              new Error(`Cloudinary upload failed: ${error.message}`)
-            );
-          }
-          if (!result || !result.secure_url) {
-            return reject(
-              new Error("Cloudinary returned invalid or empty response.")
-            );
-          }
-          resolve(result);
+      // ✅ Create upload stream to Cloudinary
+      const uploadStream = cloudinary.uploader.upload_stream(uploadOptions, (error, result) => {
+        if (error) {
+          console.error("❌ Cloudinary error:", error);
+          return reject(new Error(`Cloudinary upload failed: ${error.message}`));
         }
-      );
 
-      // ✅ Convert buffer to stream and pipe it directly
+        // ✅ Defensive: verify Cloudinary returned a valid JSON response
+        if (!result || typeof result !== "object" || !result.secure_url) {
+          console.error("⚠️ Unexpected Cloudinary response:", result);
+          return reject(new Error("Cloudinary returned invalid or non-JSON response."));
+        }
+
+        resolve(result);
+      });
+
+      // ✅ Convert buffer to readable stream
       const readStream = streamifier.createReadStream(buffer);
 
-      // Track upload progress if callback is provided
+      // ✅ Track progress for frontend feedback
       if (onProgress) {
         let uploaded = 0;
         const total = buffer.length;
@@ -90,7 +84,7 @@ export async function uploadBufferToCloudinary(buffer, options = {}, onProgress)
         });
       }
 
-      // Start streaming to Cloudinary
+      // ✅ Pipe stream to Cloudinary
       readStream.pipe(uploadStream);
     } catch (err) {
       console.error("❌ Unexpected error in uploadBufferToCloudinary:", err);
@@ -98,3 +92,4 @@ export async function uploadBufferToCloudinary(buffer, options = {}, onProgress)
     }
   });
 }
+
