@@ -46,10 +46,11 @@ app.use(
 );
 
 // ==========================================
-// ⚙️ Body Parser Limits — allow large uploads
+// ⚙️ Body Parser Limits — allow large JSON payloads
 // ==========================================
-app.use(express.json({ limit: "1gb" }));
-app.use(express.urlencoded({ limit: "1gb", extended: true }));
+// These limits apply to JSON/text data only, not video uploads handled by Multer
+app.use(express.json({ limit: "10mb" }));
+app.use(express.urlencoded({ limit: "10mb", extended: true }));
 
 // ==========================================
 // 🛤️ Routes
@@ -74,9 +75,22 @@ app.get("/", (req, res) => {
 });
 
 // ==========================================
-// 🚨 Global Error Handler (including Multer)
+// 🚫 404 Not Found Handler
+// ==========================================
+app.use((req, res) => {
+  res.status(404).json({ error: "Route not found" });
+});
+
+// ==========================================
+// 🚨 Global Error Handler (including Multer & CORS)
 // ==========================================
 app.use((err, req, res, next) => {
+  // Handle blocked CORS origin
+  if (err.message === "Not allowed by CORS") {
+    console.warn("🚫 Blocked by CORS policy:", req.headers.origin);
+    return res.status(403).json({ error: "CORS: Access denied" });
+  }
+
   console.error("❌ Server error:", err.message);
 
   if (err.message.includes("file too large")) {
