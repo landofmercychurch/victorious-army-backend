@@ -15,6 +15,7 @@ import ebooksRoutes from "./routes/ebooksRoutes.js";
 import commentsRoutes from "./routes/commentsRoutes.js";
 import adminCommentsRoutes from "./routes/adminCommentsRoutes.js";
 import likesRoutes from "./routes/likesRoutes.js";
+import ambientRoutes from "./routes/ambientRoutes.js";
 
 const app = express();
 
@@ -66,7 +67,7 @@ app.use("/api/ebooks", ebooksRoutes);
 app.use("/api/comments", commentsRoutes);
 app.use("/api/admin/comments", adminCommentsRoutes);
 app.use("/api/likes", likesRoutes);
-
+app.use("/api/ambient", ambientRoutes);
 // ==========================================
 // ❤️ Health Check Route
 // ==========================================
