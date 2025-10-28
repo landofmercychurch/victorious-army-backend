@@ -1,7 +1,7 @@
 // src/utils/upload.js
 import { v2 as cloudinary } from "cloudinary";
 import streamifier from "streamifier";
-import fileType from "file-type"; // npm install file-type
+import { fileTypeFromBuffer } from "file-type"; // ✅ fixed import
 
 /**
  * Universal Cloudinary uploader:
@@ -10,8 +10,9 @@ import fileType from "file-type"; // npm install file-type
  * - Returns secure Cloudinary URLs
  */
 export async function uploadBufferToCloudinary(buffer, options = {}, onProgress) {
-  const detected = await fileType.fromBuffer(buffer);
+  const detected = await fileTypeFromBuffer(buffer);
   const mime = detected?.mime || "application/octet-stream";
+
   const isVideo = mime.startsWith("video/");
   const isImage = mime.startsWith("image/");
   const isAudio = mime.startsWith("audio/");
@@ -25,6 +26,7 @@ export async function uploadBufferToCloudinary(buffer, options = {}, onProgress)
     public_id = undefined,
   } = options;
 
+  // 🔧 Configure upload options by media type
   const uploadOptions = isVideo
     ? {
         folder,
@@ -32,8 +34,14 @@ export async function uploadBufferToCloudinary(buffer, options = {}, onProgress)
         use_filename: true,
         unique_filename: true,
         eager: [
-          { transformation: [{ fetch_format: "mp4", quality: "auto", h: 720 }], format: "mp4" },
-          { transformation: [{ fetch_format: "webm", quality: "auto", vc: "vp9", h: 720 }], format: "webm" },
+          {
+            transformation: [{ fetch_format: "mp4", quality: "auto", h: 720 }],
+            format: "mp4",
+          },
+          {
+            transformation: [{ fetch_format: "webm", quality: "auto", vc: "vp9", h: 720 }],
+            format: "webm",
+          },
         ],
       }
     : isAudio
@@ -58,12 +66,13 @@ export async function uploadBufferToCloudinary(buffer, options = {}, onProgress)
     try {
       const uploadStream = cloudinary.uploader.upload_stream(uploadOptions, (error, result) => {
         if (error) return reject(new Error(`Cloudinary upload failed: ${error.message}`));
-        if (!result || !result.secure_url) return reject(new Error("Cloudinary returned invalid response."));
+        if (!result?.secure_url) return reject(new Error("Cloudinary returned invalid response."));
         resolve(result);
       });
 
       const readStream = streamifier.createReadStream(buffer);
 
+      // Optional upload progress tracking
       if (onProgress) {
         let uploaded = 0;
         const total = buffer.length;
