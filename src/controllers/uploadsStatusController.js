@@ -4,7 +4,7 @@ import { uploadBufferToCloudinary } from "../utils/upload.js";
 /**
  * Generic file upload handler
  */
-export async function handleFileUpload(req, res) {
+export async function handleFileUpload(req, res) { 
   try {
     if (!req.files || req.files.length === 0) {
       return res.status(400).json({ error: "No file uploaded" });
