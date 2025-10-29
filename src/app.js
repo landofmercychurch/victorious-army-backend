@@ -1,7 +1,7 @@
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
-import { handleFileUpload } from "../controllers/uploadsStatusController.js";
+import { handleFileUpload } from "./controllers/uploadsStatusController.js";
 
 dotenv.config();
 
