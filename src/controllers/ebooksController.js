@@ -1,4 +1,3 @@
-// src/controllers/ebooksController.js
 import { supabase } from "../config/supabase.js";
 import { uploadBufferToCloudinary } from "../utils/upload.js";
 import { PDFDocument } from "pdf-lib";
@@ -42,7 +41,7 @@ export async function listEbooks(req, res) {
  */
 export async function uploadEbook(req, res) {
   try {
-    const { title, author, series, series_order } = req.body;
+    const { title, author, series, series_order, description } = req.body;
     const pdfFile = req.files?.pdf?.[0];
     const coverFile = req.files?.cover?.[0];
 
@@ -57,16 +56,16 @@ export async function uploadEbook(req, res) {
 
     const pdfBuffer = await pdfDoc.save();
 
-    // ✅ Upload PDF to Cloudinary (as inline-viewable, not forced download)
+    // Upload PDF to Cloudinary (inline view)
     const pdfResult = await uploadBufferToCloudinary(pdfBuffer, {
       folder: "ebooks",
-      resource_type: "auto", // let Cloudinary serve inline
+      resource_type: "auto",
       use_filename: true,
       unique_filename: true,
       overwrite: false,
     });
 
-    // ✅ Upload Cover Image (optional)
+    // Upload Cover Image (optional)
     let cover_url = "https://via.placeholder.com/180x240?text=No+Cover"; // fallback
     if (coverFile) {
       try {
@@ -92,6 +91,7 @@ export async function uploadEbook(req, res) {
           series_order: order,
           pdf_url: pdfResult.secure_url,
           cover_url,
+          description: description || "",
         },
       ])
       .select()
@@ -102,6 +102,82 @@ export async function uploadEbook(req, res) {
     return res.status(201).json(data);
   } catch (err) {
     console.error("[uploadEbook] Error:", err);
+    return res.status(500).json({ error: err.message });
+  }
+}
+
+/**
+ * Edit ebook metadata and optionally replace files
+ */
+export async function editEbook(req, res) {
+  try {
+    const { id } = req.params;
+    const { title, author, series, series_order, description } = req.body;
+    const pdfFile = req.files?.pdf?.[0];
+    const coverFile = req.files?.cover?.[0];
+
+    if (!id) return res.status(400).json({ error: "Ebook ID is required" });
+
+    // Fetch existing ebook
+    const { data: existing, error: fetchErr } = await supabase
+      .from("ebooks")
+      .select("*")
+      .eq("id", id)
+      .single();
+    if (fetchErr || !existing) return res.status(404).json({ error: "Ebook not found" });
+
+    let pdf_url = existing.pdf_url;
+    let cover_url = existing.cover_url;
+
+    // Replace PDF if uploaded
+    if (pdfFile) {
+      const pdfDoc = await PDFDocument.load(pdfFile.buffer);
+      pdfDoc.setTitle(title || existing.title || "Untitled");
+      pdfDoc.setAuthor(author || existing.author || "Unknown");
+      pdfDoc.setSubject(series || existing.series || "Standalone");
+      if (series_order) pdfDoc.setKeywords([`Part ${series_order}`]);
+      const pdfBuffer = await pdfDoc.save();
+
+      const pdfResult = await uploadBufferToCloudinary(pdfBuffer, {
+        folder: "ebooks",
+        resource_type: "auto",
+        use_filename: true,
+        unique_filename: true,
+      });
+      pdf_url = pdfResult.secure_url;
+    }
+
+    // Replace Cover if uploaded
+    if (coverFile) {
+      const coverResult = await uploadBufferToCloudinary(coverFile.buffer, {
+        folder: "ebooks/covers",
+        resource_type: "image",
+      });
+      cover_url = coverResult.secure_url;
+    }
+
+    const order = series_order ? parseInt(series_order, 10) : existing.series_order || 0;
+
+    const { data, error } = await supabase
+      .from("ebooks")
+      .update({
+        title: title || existing.title,
+        author: author || existing.author,
+        series: series || existing.series,
+        series_order: order,
+        pdf_url,
+        cover_url,
+        description: description || existing.description || "",
+      })
+      .eq("id", id)
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    return res.json(data);
+  } catch (err) {
+    console.error("[editEbook] Error:", err);
     return res.status(500).json({ error: err.message });
   }
 }
