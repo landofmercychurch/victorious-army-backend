@@ -1,13 +1,16 @@
-// src/routes/uploadsStatusRoutes.js
+// uploadsStatusRoutes.js
 import express from "express";
-import multer from "multer";
 import { handleFileUpload } from "../controllers/uploadsStatusController.js";
+import multer from "multer";
 
 const router = express.Router();
-const upload = multer({ storage: multer.memoryStorage() });
 
-// POST /api/upload
-// Accept multiple files from admin with real-time status
-router.post("/", upload.array("files"), handleFileUpload);
+// Use memory storage for real-time progress streaming
+const storage = multer.memoryStorage();
+const upload = multer({ storage });
+
+// Single or multiple file upload
+router.post("/", upload.any(), handleFileUpload);
 
 export default router;
+
