@@ -1,6 +1,8 @@
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
+import { handleFileUpload } from "../controllers/uploadsStatusController.js";
+
 dotenv.config();
 
 // ===== ROUTES =====
@@ -68,6 +70,7 @@ app.use("/api/comments", commentsRoutes);
 app.use("/api/admin/comments", adminCommentsRoutes);
 app.use("/api/likes", likesRoutes);
 app.use("/api/ambient", ambientRoutes);
+app.use("/api/uploadsStatus", uploadsStatusRoutes);
 // ==========================================
 // ❤️ Health Check Route
 // ==========================================
