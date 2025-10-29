@@ -74,7 +74,8 @@ app.use("/api/comments", commentsRoutes);
 app.use("/api/admin/comments", adminCommentsRoutes);
 app.use("/api/likes", likesRoutes);
 app.use("/api/ambient", ambientRoutes);
-app.use("/api/uploadsStatus", uploadsStatusRoutes);
+app.use("/api/uploads-status", uploadsStatusRoutes);
+
 // ==========================================
 // ❤️ Health Check Route
 // ==========================================
