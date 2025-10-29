@@ -1,6 +1,6 @@
 // uploadsStatusRoutes.js
 import express from "express";
-import { handleFileUpload } from "../controllers/uploadsStatusController.js";
+import { handleFileUploadSSE } from "../controllers/uploadsStatusController.js";
 import multer from "multer";
 
 const router = express.Router();
@@ -9,8 +9,7 @@ const router = express.Router();
 const storage = multer.memoryStorage();
 const upload = multer({ storage });
 
-// Single or multiple file upload
-router.post("/", upload.any(), handleFileUpload);
+// Single or multiple file upload using SSE handler
+router.post("/", upload.any(), handleFileUploadSSE);
 
 export default router;
-
