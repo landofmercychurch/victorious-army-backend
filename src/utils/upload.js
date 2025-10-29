@@ -33,11 +33,14 @@ export async function uploadBufferToCloudinary(buffer, options = {}, onProgress)
     public_id = undefined,
   } = options;
 
+  // ✅ Trim folder to remove any leading/trailing whitespace
+  const cleanFolder = folder.trim();
+
   // Configure upload options by type
   let uploadOptions;
   if (isVideo) {
     uploadOptions = {
-      folder,
+      folder: cleanFolder,
       resource_type: "video",
       use_filename: true,
       unique_filename: true,
@@ -48,7 +51,7 @@ export async function uploadBufferToCloudinary(buffer, options = {}, onProgress)
     };
   } else if (isAudio) {
     uploadOptions = {
-      folder,
+      folder: cleanFolder,
       resource_type: "video", // Cloudinary treats audio as video
       use_filename: true,
       unique_filename: true,
@@ -56,7 +59,7 @@ export async function uploadBufferToCloudinary(buffer, options = {}, onProgress)
     };
   } else if (isPdf) {
     uploadOptions = {
-      folder,
+      folder: cleanFolder,
       resource_type: "raw", // PDFs are raw files
       use_filename: true,
       unique_filename: true,
@@ -64,7 +67,7 @@ export async function uploadBufferToCloudinary(buffer, options = {}, onProgress)
     };
   } else {
     uploadOptions = {
-      folder,
+      folder: cleanFolder,
       resource_type: "image",
       use_filename: true,
       unique_filename: true,
@@ -73,7 +76,7 @@ export async function uploadBufferToCloudinary(buffer, options = {}, onProgress)
   }
 
   console.log(
-    `📤 Uploading ${mime} to folder '${folder}' (${
+    `📤 Uploading ${mime} to folder '${cleanFolder}' (${
       isVideo ? "video" : isAudio ? "audio" : isPdf ? "PDF" : "image"
     })`
   );
