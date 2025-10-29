@@ -1,4 +1,4 @@
-// src/controllers/uploadsController.js
+// src/controllers/uploadsStatusController.js
 import { uploadBufferToCloudinary } from "../utils/upload.js";
 
 /**
