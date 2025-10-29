@@ -1,11 +1,11 @@
 // src/utils/upload.js
 import { v2 as cloudinary } from "cloudinary";
 import streamifier from "streamifier";
-import { fileTypeFromBuffer } from "file-type"; // ✅ fixed import
+import { fileTypeFromBuffer } from "file-type";
 
 /**
  * Universal Cloudinary uploader:
- * - Auto-detects image, video, or audio
+ * - Auto-detects image, video, audio, or PDF
  * - Handles transformations automatically
  * - Returns secure Cloudinary URLs
  */
@@ -16,51 +16,67 @@ export async function uploadBufferToCloudinary(buffer, options = {}, onProgress)
   const isVideo = mime.startsWith("video/");
   const isImage = mime.startsWith("image/");
   const isAudio = mime.startsWith("audio/");
+  const isPdf = mime === "application/pdf";
 
-  if (!isVideo && !isImage && !isAudio) {
+  if (!isVideo && !isImage && !isAudio && !isPdf) {
     throw new Error(`Unsupported file type: ${mime}`);
   }
 
   const {
-    folder = isVideo ? "videos" : isAudio ? "ambient" : "memorials",
+    folder = isVideo
+      ? "videos"
+      : isAudio
+      ? "ambient"
+      : isPdf
+      ? "ebooks"
+      : "memorials",
     public_id = undefined,
   } = options;
 
-  // 🔧 Configure upload options by media type
-  const uploadOptions = isVideo
-    ? {
-        folder,
-        resource_type: "video",
-        use_filename: true,
-        unique_filename: true,
-        eager: [
-          {
-            transformation: [{ fetch_format: "mp4", quality: "auto", h: 720 }],
-            format: "mp4",
-          },
-          {
-            transformation: [{ fetch_format: "webm", quality: "auto", vc: "vp9", h: 720 }],
-            format: "webm",
-          },
-        ],
-      }
-    : isAudio
-    ? {
-        folder,
-        resource_type: "video", // Cloudinary treats audio as "video"
-        use_filename: true,
-        unique_filename: true,
-        allowed_formats: ["mp3", "wav", "m4a", "aac", "ogg"],
-      }
-    : {
-        folder,
-        resource_type: "image",
-        use_filename: true,
-        unique_filename: true,
-        allowed_formats: ["jpg", "jpeg", "png", "webp"],
-      };
+  // Configure upload options by type
+  let uploadOptions;
+  if (isVideo) {
+    uploadOptions = {
+      folder,
+      resource_type: "video",
+      use_filename: true,
+      unique_filename: true,
+      eager: [
+        { transformation: [{ fetch_format: "mp4", quality: "auto", h: 720 }], format: "mp4" },
+        { transformation: [{ fetch_format: "webm", quality: "auto", vc: "vp9", h: 720 }], format: "webm" },
+      ],
+    };
+  } else if (isAudio) {
+    uploadOptions = {
+      folder,
+      resource_type: "video", // Cloudinary treats audio as video
+      use_filename: true,
+      unique_filename: true,
+      allowed_formats: ["mp3", "wav", "m4a", "aac", "ogg"],
+    };
+  } else if (isPdf) {
+    uploadOptions = {
+      folder,
+      resource_type: "raw", // PDFs are raw files
+      use_filename: true,
+      unique_filename: true,
+      allowed_formats: ["pdf"],
+    };
+  } else {
+    uploadOptions = {
+      folder,
+      resource_type: "image",
+      use_filename: true,
+      unique_filename: true,
+      allowed_formats: ["jpg", "jpeg", "png", "webp"],
+    };
+  }
 
-  console.log(`📤 Uploading ${mime} to folder '${folder}' (${isVideo ? "video" : isAudio ? "audio" : "image"})`);
+  console.log(
+    `📤 Uploading ${mime} to folder '${folder}' (${
+      isVideo ? "video" : isAudio ? "audio" : isPdf ? "PDF" : "image"
+    })`
+  );
 
   return new Promise((resolve, reject) => {
     try {
@@ -72,11 +88,10 @@ export async function uploadBufferToCloudinary(buffer, options = {}, onProgress)
 
       const readStream = streamifier.createReadStream(buffer);
 
-      // Optional upload progress tracking
       if (onProgress) {
         let uploaded = 0;
         const total = buffer.length;
-        readStream.on("data", chunk => {
+        readStream.on("data", (chunk) => {
           uploaded += chunk.length;
           onProgress(Math.round((uploaded / total) * 100));
         });
