@@ -18,6 +18,9 @@ import commentsRoutes from "./routes/commentsRoutes.js";
 import adminCommentsRoutes from "./routes/adminCommentsRoutes.js";
 import likesRoutes from "./routes/likesRoutes.js";
 import ambientRoutes from "./routes/ambientRoutes.js";
+import uploadsStatusRoutes from "./routes/uploadsStatusRoutes.js";
+
+
 
 const app = express();
 
