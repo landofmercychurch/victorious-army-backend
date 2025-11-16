@@ -2,6 +2,7 @@ import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
 import { handleFileUploadSSE } from "./controllers/uploadsStatusController.js";
+import adminAuthRoutes from "./routes/adminAuthRoutes.js"; // <-- new
 
 
 dotenv.config();
@@ -60,6 +61,8 @@ app.use(
 // These limits apply to JSON/text data only, not video uploads handled by Multer
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ limit: "10mb", extended: true }));
+// Public admin login route
+app.use("/api/admin/auth", adminAuthRoutes);
 
 // ==========================================
 // 🛤️ Routes
