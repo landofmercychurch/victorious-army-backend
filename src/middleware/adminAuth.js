@@ -1,34 +1,32 @@
-// src/middleware/adminAuth.js
+// src/middleware/authAdminJWT.js
 import jwt from "jsonwebtoken";
+import { supabase } from "../config/supabase.js";
 
-/**
- * Middleware to verify backend JWT and admin access.
- * Attaches payload to req.user.
- */
-export function requireAdmin(req, res, next) {
+export async function authenticateAdmin(req, res, next) {
   const authHeader = req.headers.authorization;
-
-  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+  if (!authHeader?.startsWith("Bearer ")) {
     return res.status(401).json({ error: "Missing Authorization header" });
   }
 
   const token = authHeader.split(" ")[1];
 
   try {
-    // Verify JWT
     const payload = jwt.verify(token, process.env.JWT_SECRET);
 
-    // Check if admin
-    if (!payload.is_admin) {
+    // Optional: validate against DB for admin
+    const { data: profile, error } = await supabase
+      .from("profiles")
+      .select("id, username, is_admin")
+      .eq("id", payload.id)
+      .single();
+
+    if (error || !profile || !profile.is_admin) {
       return res.status(403).json({ error: "Admin access required" });
     }
 
-    // Attach user info to request
-    req.user = payload;
-
+    req.user = { ...payload, profile };
     next();
   } catch (err) {
-    console.error("requireAdmin error:", err);
     return res.status(403).json({ error: "Invalid or expired token" });
   }
 }
