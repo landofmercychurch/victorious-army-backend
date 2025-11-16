@@ -1,13 +1,10 @@
+// src/app.js
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
-import { handleFileUploadSSE } from "./controllers/uploadsStatusController.js";
-import adminAuthRoutes from "./routes/adminAuthRoutes.js"; // <-- new
+import adminAuthRoutes from "./routes/adminAuthRoutes.js";
 
-
-dotenv.config();
-
-// ===== ROUTES =====
+// Routes
 import dailyVerseRoutes from "./routes/dailyVerseRoutes.js";
 import eventsRoutes from "./routes/eventsRoutes.js";
 import memorialsRoutes from "./routes/memorialsRoutes.js";
@@ -22,7 +19,7 @@ import likesRoutes from "./routes/likesRoutes.js";
 import ambientRoutes from "./routes/ambientRoutes.js";
 import uploadsStatusRoutes from "./routes/uploadsStatusRoutes.js";
 
-
+dotenv.config();
 
 const app = express();
 
@@ -34,20 +31,14 @@ const allowedOrigins = [
   "http://localhost:5173",
   "http://127.0.0.1:5500",
   "http://localhost:5500",
-  "http://localhost:7700/index.html", 
-  "localhost:7700/index.html", 
+  "http://localhost:7700/index.html",
 ];
 
 app.use(
   cors({
     origin: (origin, cb) => {
-      // Allow requests with no origin (like Postman, SSR, etc.)
-      if (!origin) return cb(null, true);
-
-      if (allowedOrigins.includes(origin)) {
-        return cb(null, true);
-      }
-
+      if (!origin) return cb(null, true); // Postman or SSR requests
+      if (allowedOrigins.includes(origin)) return cb(null, true);
       console.warn(`🚫 CORS blocked request from: ${origin}`);
       return cb(new Error("Not allowed by CORS"));
     },
@@ -56,16 +47,18 @@ app.use(
 );
 
 // ==========================================
-// ⚙️ Body Parser Limits — allow large JSON payloads
+// ⚙️ Body Parser — allow large JSON payloads
 // ==========================================
-// These limits apply to JSON/text data only, not video uploads handled by Multer
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ limit: "10mb", extended: true }));
-// Public admin login route
+
+// ==========================================
+// 🛤️ Public / Auth Routes
+// ==========================================
 app.use("/api/admin/auth", adminAuthRoutes);
 
 // ==========================================
-// 🛤️ Routes
+// 🛤️ Protected / General Routes
 // ==========================================
 app.use("/api/daily-verse", dailyVerseRoutes);
 app.use("/api/events", eventsRoutes);
@@ -82,7 +75,7 @@ app.use("/api/ambient", ambientRoutes);
 app.use("/api/uploads-status", uploadsStatusRoutes);
 
 // ==========================================
-// ❤️ Health Check Route
+// ❤️ Health Check
 // ==========================================
 app.get("/", (req, res) => {
   res.json({ ok: true, message: "Church backend running ✅" });
@@ -99,7 +92,6 @@ app.use((req, res) => {
 // 🚨 Global Error Handler (including Multer & CORS)
 // ==========================================
 app.use((err, req, res, next) => {
-  // Handle blocked CORS origin
   if (err.message === "Not allowed by CORS") {
     console.warn("🚫 Blocked by CORS policy:", req.headers.origin);
     return res.status(403).json({ error: "CORS: Access denied" });
