@@ -1,7 +1,11 @@
 // src/routes/memorialsRoutes.js
 import express from "express";
 import multer from "multer";
-import { listMemorials, createMemorial, deleteMemorial } from "../controllers/memorialsController.js";
+import {
+  listMemorials,
+  createMemorial,
+  deleteMemorial,
+} from "../controllers/memorialsController.js";
 import { authenticateJWT } from "../middleware/adminAuth.js";
 
 const router = express.Router();
@@ -12,11 +16,16 @@ const upload = multer({
   limits: { fileSize: 20 * 1024 * 1024 }, // 20MB per file
 });
 
-// GET all memorials
+// GET all memorials (public or admin)
 router.get("/", listMemorials);
 
-// Admin: create a memorial with multiple files (images, audio, etc.)
-router.post("/", authenticateJWT, upload.array("files", 20), createMemorial);
+// Admin: create a memorial with multiple files (images + sounds)
+router.post(
+  "/",
+  authenticateJWT,
+  upload.array("files", 20), // up to 20 files per upload
+  createMemorial
+);
 
 // Admin: delete a memorial by ID
 router.delete("/:id", authenticateJWT, deleteMemorial);
