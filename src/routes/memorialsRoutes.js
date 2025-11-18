@@ -5,16 +5,18 @@ import { listMemorials, createMemorial, deleteMemorial } from "../controllers/me
 import { authenticateJWT } from "../middleware/adminAuth.js";
 
 const router = express.Router();
+
+// Memory storage for uploaded files
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB each
+  limits: { fileSize: 20 * 1024 * 1024 }, // 20MB per file
 });
 
-// GET memorials
+// GET all memorials
 router.get("/", listMemorials);
 
-// Admin: upload up to 10 images for a memorial
-router.post("/", authenticateJWT, upload.array("images", 10), createMemorial);
+// Admin: create a memorial with multiple files (images, audio, etc.)
+router.post("/", authenticateJWT, upload.array("files", 20), createMemorial);
 
 // Admin: delete a memorial by ID
 router.delete("/:id", authenticateJWT, deleteMemorial);
