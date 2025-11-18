@@ -3,9 +3,11 @@ import { supabase } from "../config/supabase.js";
 import { uploadBufferToCloudinary } from "../utils/upload.js";
 import { PDFDocument } from "pdf-lib";
 
-// ==========================
-// 📚 LIST EBOOKS
-// ==========================
+/**
+ * ==========================
+ * 📚 LIST EBOOKS
+ * ==========================
+ */
 export async function listEbooks(req, res) {
   try {
     const { series } = req.query;
@@ -27,42 +29,49 @@ export async function listEbooks(req, res) {
   }
 }
 
-// ==========================
-// 📤 UPLOAD EBOOK
-// ==========================
+/**
+ * ==========================
+ * 📤 UPLOAD EBOOK (PDF + Cover)
+ * ==========================
+ */
 export async function uploadEbook(req, res) {
   try {
     const { title, author, series, series_order, description } = req.body;
     const pdfFile = req.files?.pdf?.[0];
     const coverFile = req.files?.cover?.[0];
 
-    if (!pdfFile) return res.status(400).json({ error: "PDF file is required" });
+    if (!pdfFile)
+      return res.status(400).json({ error: "PDF file is required" });
 
-    // ✏️ Embed metadata
+    // Embed metadata in PDF
     const pdfDoc = await PDFDocument.load(pdfFile.buffer);
     pdfDoc.setTitle(title || "Untitled");
     pdfDoc.setAuthor(author || "Unknown");
     pdfDoc.setSubject(series || "Standalone");
     if (series_order) pdfDoc.setKeywords([Part ${series_order}]);
 
-    const finalPdf = await pdfDoc.save();
+    const pdfBuffer = await pdfDoc.save();
 
-    // 📤 Upload PDF to Cloudinary
-    const pdfUpload = await uploadBufferToCloudinary(finalPdf, {
+    // Upload PDF to Cloudinary
+    const pdfUpload = await uploadBufferToCloudinary(pdfBuffer, {
       folder: "ebooks",
       resource_type: "auto",
       use_filename: true,
       unique_filename: true,
     });
 
-    // 📤 Upload cover (optional)
+    // Upload cover (optional)
     let cover_url = "https://via.placeholder.com/180x240?text=No+Cover";
     if (coverFile) {
-      const coverUpload = await uploadBufferToCloudinary(coverFile.buffer, {
-        folder: "ebooks/covers",
-        resource_type: "image",
-      });
-      cover_url = coverUpload.secure_url;
+      try {
+        const coverUpload = await uploadBufferToCloudinary(coverFile.buffer, {
+          folder: "ebooks/covers",
+          resource_type: "image",
+        });
+        cover_url = coverUpload.secure_url;
+      } catch (err) {
+        console.warn("[uploadEbook] Cover upload failed:", err.message);
+      }
     }
 
     const order = series_order ? parseInt(series_order, 10) : 0;
@@ -92,9 +101,11 @@ export async function uploadEbook(req, res) {
   }
 }
 
-// ==========================
-// ✏️ EDIT EBOOK
-// ==========================
+/**
+ * ==========================
+ * ✏️ EDIT EBOOK
+ * ==========================
+ */
 export async function editEbook(req, res) {
   try {
     const { id } = req.params;
@@ -119,33 +130,28 @@ export async function editEbook(req, res) {
       const pdfDoc = await PDFDocument.load(pdfFile.buffer);
       pdfDoc.setTitle(title || existing.title);
       pdfDoc.setAuthor(author || existing.author);
-      pdfDoc.setSubject(series || existing.series);
+      pdfDoc.setSubject(series || existing.series || "Standalone");
       if (series_order) pdfDoc.setKeywords([Part ${series_order}]);
 
-      const finalPdf = await pdfDoc.save();
-
-      const pdfUpload = await uploadBufferToCloudinary(finalPdf, {
+      const pdfBuffer = await pdfDoc.save();
+      const pdfUpload = await uploadBufferToCloudinary(pdfBuffer, {
         folder: "ebooks",
         resource_type: "auto",
         unique_filename: true,
       });
-
       pdf_url = pdfUpload.secure_url;
     }
 
-    // Replace Cover
+    // Replace cover
     if (coverFile) {
       const coverUpload = await uploadBufferToCloudinary(coverFile.buffer, {
         folder: "ebooks/covers",
         resource_type: "image",
       });
-
       cover_url = coverUpload.secure_url;
     }
 
-    const order = series_order
-      ? parseInt(series_order, 10)
-      : existing.series_order;
+    const order = series_order ? parseInt(series_order, 10) : existing.series_order;
 
     const { data, error } = await supabase
       .from("ebooks")
@@ -171,9 +177,11 @@ export async function editEbook(req, res) {
   }
 }
 
-// ==========================
-// 🗑️ DELETE EBOOK
-// ==========================
+/**
+ * ==========================
+ * 🗑️ DELETE EBOOK
+ * ==========================
+ */
 export async function deleteEbook(req, res) {
   try {
     const { id } = req.params;
@@ -196,9 +204,11 @@ export async function deleteEbook(req, res) {
   }
 }
 
-// ==========================
-// ⬇️ DOWNLOAD PDF
-// ==========================
+/**
+ * ==========================
+ * ⬇️ DOWNLOAD PDF
+ * ==========================
+ */
 export async function downloadEbook(req, res) {
   try {
     const { id } = req.params;
@@ -214,7 +224,6 @@ export async function downloadEbook(req, res) {
 
     const pdf = await fetch(ebook.pdf_url);
     const buffer = await pdf.arrayBuffer();
-
     const safeName = (ebook.title || "ebook").replace(/[\/\\:*?"<>|]/g, "-");
 
     res.setHeader("Content-Type", "application/pdf");
@@ -230,9 +239,11 @@ export async function downloadEbook(req, res) {
   }
 }
 
-// ==========================
-// 📖 READ PDF ONLINE
-// ==========================
+/**
+ * ==========================
+ * 📖 READ PDF ONLINE
+ * ==========================
+ */
 export async function readEbookOnline(req, res) {
   try {
     const { id } = req.params;
@@ -250,7 +261,7 @@ export async function readEbookOnline(req, res) {
     const buffer = await pdf.arrayBuffer();
 
     res.setHeader("Content-Type", "application/pdf");
-    res.setHeader("Content-Disposition", "inline"); // <<< OPEN IN BROWSER
+    res.setHeader("Content-Disposition", "inline"); // Open in browser
 
     res.send(Buffer.from(buffer));
   } catch (err) {
