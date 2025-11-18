@@ -1,42 +1,27 @@
-// src/routes/ebooksRoutes.js
 import express from "express";
 import multer from "multer";
 import {
   listEbooks,
   uploadEbook,
-  editEbook,
-  deleteEbook,
   downloadEbook,
-  readEbookOnline,
+  deleteEbook,
+  editEbook,
+  readEbookOnline, // ✅ new controller function
 } from "../controllers/ebooksController.js";
 import { authenticateJWT } from "../middleware/adminAuth.js";
 
 const router = express.Router();
 
-// Multer memory storage
+// Configure multer to accept multiple files
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 50 * 1024 * 1024 }, // 50MB
 });
 
-// ==========================
-// 📚 PUBLIC ROUTES
-// ==========================
-
-// List all ebooks
+// GET all ebooks (optionally filtered by series)
 router.get("/", listEbooks);
 
-// Read online (opens in browser)
-router.get("/read/:id", readEbookOnline);
-
-// Download PDF
-router.get("/download/:id", downloadEbook);
-
-// ==========================
-// 🔒 ADMIN ROUTES
-// ==========================
-
-// Upload (PDF + optional cover)
+// Admin: upload new ebook (PDF + optional cover)
 router.post(
   "/",
   authenticateJWT,
@@ -47,7 +32,7 @@ router.post(
   uploadEbook
 );
 
-// Edit metadata or replace files
+// Admin: edit ebook metadata and optionally replace files
 router.put(
   "/:id",
   authenticateJWT,
@@ -58,7 +43,13 @@ router.put(
   editEbook
 );
 
-// Delete ebook
+// Download PDF with correct filename and metadata
+router.get("/download/:id", downloadEbook);
+
+// ✅ Read PDF in browser (inline)
+router.get("/read/:id", readEbookOnline);
+
+// DELETE ebook by ID (admin only)
 router.delete("/:id", authenticateJWT, deleteEbook);
 
 export default router;
