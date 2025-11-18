@@ -2,7 +2,7 @@
 import express from "express";
 import multer from "multer";
 import { listMemorials, createMemorial, deleteMemorial } from "../controllers/memorialsController.js";
-import { requireAdmin } from "../middleware/adminAuth.js";
+import { authenticateJWT } from "../middleware/adminAuth.js";
 
 const router = express.Router();
 const upload = multer({
@@ -14,9 +14,9 @@ const upload = multer({
 router.get("/", listMemorials);
 
 // Admin: upload up to 10 images for a memorial
-router.post("/", requireAdmin, upload.array("images", 10), createMemorial);
+router.post("/", authenticateJWT, upload.array("images", 10), createMemorial);
 
 // Admin: delete a memorial by ID
-router.delete("/:id", requireAdmin, deleteMemorial);
+router.delete("/:id", authenticateJWT, deleteMemorial);
 
 export default router;
