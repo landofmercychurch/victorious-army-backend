@@ -31,6 +31,7 @@ const allowedOrigins = [
   "http://localhost:5173",
   "http://127.0.0.1:5500",
   "http://localhost:5500",
+  "https://varmadmin.netlify.app",
   "http://localhost:7700/index.html",
 ];
 
