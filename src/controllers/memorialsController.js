@@ -25,37 +25,43 @@ export async function listMemorials(req, res) {
 }
 
 /**
- * Create a new memorial with multiple uploaded files (images/audio/etc.)
+ * Create a new memorial with uploaded images and sounds
  */
 export async function createMemorial(req, res) {
   try {
+    console.log("🖼️ Received memorial upload request:", req.body);
+
     const { title, description } = req.body;
 
-    if (!title) return res.status(400).json({ error: "Title is required." });
-    if (!req.files || req.files.length === 0) return res.status(400).json({ error: "At least one file is required." });
-
-    const uploadedFiles = [];
-
-    for (const file of req.files) {
-      console.log("☁️ Uploading file to Cloudinary:", file.originalname);
-
-      // Use resource_type "auto" to support images, audio, videos, etc.
-      const result = await uploadBufferToCloudinary(file.buffer, { folder: "memorials", resource_type: "auto" });
-
-      uploadedFiles.push({
-        url: result.secure_url,
-        public_id: result.public_id,
-        originalname: file.originalname,
-        mimetype: file.mimetype
-      });
-
-      console.log("✅ File uploaded:", result.secure_url);
+    if (!req.files || req.files.length === 0) {
+      console.warn("⚠️ No files provided for memorial");
+      return res.status(400).json({ error: "At least one file required." });
     }
 
-    // Insert a single memorial record with all files
+    // Separate images and sounds based on MIME type
+    const uploadedImages = [];
+    const uploadedSounds = [];
+
+    for (const file of req.files) {
+      const folderType = file.mimetype.startsWith("image/") ? "memorials/images" : "memorials/sounds";
+      console.log(`☁️ Uploading ${file.mimetype.startsWith("image/") ? "image" : "sound"} to Cloudinary:`, file.originalname);
+      const result = await uploadBufferToCloudinary(file.buffer, { folder: folderType });
+      const fileData = { url: result.secure_url, public_id: result.public_id };
+
+      if (file.mimetype.startsWith("image/")) uploadedImages.push(fileData);
+      else if (file.mimetype.startsWith("audio/")) uploadedSounds.push(fileData);
+
+      console.log("✅ Uploaded:", result.secure_url);
+    }
+
+    if (uploadedImages.length === 0) {
+      return res.status(400).json({ error: "At least one image is required for a memorial." });
+    }
+
+    console.log("🗂️ Inserting memorial record into database...");
     const { data, error } = await supabase
       .from("memorials")
-      .insert([{ title, description, files: uploadedFiles }])
+      .insert([{ title, description, images: uploadedImages, sounds: uploadedSounds }])
       .select()
       .single();
 
@@ -70,16 +76,17 @@ export async function createMemorial(req, res) {
 }
 
 /**
- * Delete a memorial by ID (including all files on Cloudinary)
+ * Delete a memorial by ID (including Cloudinary images and sounds)
  */
 export async function deleteMemorial(req, res) {
   try {
     const { id } = req.params;
     console.log("🗑️ Deleting memorial:", id);
 
+    // Fetch memorial to get files
     const { data: memorial, error: fetchErr } = await supabase
       .from("memorials")
-      .select("id, files")
+      .select("id, images, sounds")
       .eq("id", id)
       .single();
 
@@ -88,13 +95,13 @@ export async function deleteMemorial(req, res) {
       return res.status(404).json({ error: "Memorial not found" });
     }
 
-    // Delete all files from Cloudinary
-    if (memorial.files && Array.isArray(memorial.files)) {
-      for (const file of memorial.files) {
-        if (file.public_id) {
+    // Delete images from Cloudinary
+    if (memorial.images && Array.isArray(memorial.images)) {
+      for (const img of memorial.images) {
+        if (img.public_id) {
           try {
-            await cloudinary.uploader.destroy(file.public_id, { resource_type: "auto" });
-            console.log("🧹 Deleted file from Cloudinary:", file.public_id);
+            await cloudinary.uploader.destroy(img.public_id, { resource_type: "image" });
+            console.log("🧹 Deleted image from Cloudinary:", img.public_id);
           } catch (cloudErr) {
             console.error("⚠️ Cloudinary delete error:", cloudErr);
           }
@@ -102,6 +109,21 @@ export async function deleteMemorial(req, res) {
       }
     }
 
+    // Delete sounds from Cloudinary
+    if (memorial.sounds && Array.isArray(memorial.sounds)) {
+      for (const sound of memorial.sounds) {
+        if (sound.public_id) {
+          try {
+            await cloudinary.uploader.destroy(sound.public_id, { resource_type: "video" }); // audio files are treated as "video" in Cloudinary
+            console.log("🧹 Deleted sound from Cloudinary:", sound.public_id);
+          } catch (cloudErr) {
+            console.error("⚠️ Cloudinary delete error:", cloudErr);
+          }
+        }
+      }
+    }
+
+    // Delete memorial from Supabase
     const { error: delErr } = await supabase
       .from("memorials")
       .delete()
