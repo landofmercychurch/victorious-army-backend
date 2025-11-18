@@ -1,10 +1,14 @@
+// src/routes/adminAuthRoutes.js
 import express from "express";
 import jwt from "jsonwebtoken";
 import { supabase } from "../config/supabase.js";
 
 const router = express.Router();
 
-// POST /api/admin/login
+/**
+ * POST /api/admin/auth/login
+ * Admin login route: validates credentials via Supabase and returns backend JWT
+ */
 router.post("/login", async (req, res) => {
   const { email, password } = req.body;
 
@@ -13,7 +17,7 @@ router.post("/login", async (req, res) => {
   }
 
   try {
-    // Supabase admin login
+    // Supabase login
     const { data: userData, error: authError } = await supabase.auth.signInWithPassword({
       email,
       password,
@@ -25,7 +29,7 @@ router.post("/login", async (req, res) => {
 
     const userId = userData.user.id;
 
-    // fetch profile to check is_admin
+    // fetch profile and check is_admin
     const { data: profile, error: profileError } = await supabase
       .from("profiles")
       .select("id, username, is_admin")
@@ -48,12 +52,14 @@ router.post("/login", async (req, res) => {
       { expiresIn: "30m" }
     );
 
+    // return token + user info
     res.json({
       token,
       user: {
         id: userId,
         email: userData.user.email,
         username: profile.username,
+        is_admin: profile.is_admin,
       },
     });
   } catch (err) {
