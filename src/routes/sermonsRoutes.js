@@ -6,7 +6,7 @@ import {
   deleteSermon,
   updateSermon,
 } from "../controllers/sermonsController.js";
-import { requireAdmin } from "../middleware/adminAuth.js";
+import { authenticateJWT } from "../middleware/adminAuth.js";
 
 const router = express.Router();
 
@@ -46,12 +46,12 @@ const upload = multer({
 router.get("/", listSermons);
 
 // 🎬 Create new sermon (admin only)
-router.post("/", requireAdmin, upload.single("video"), createSermon);
+router.post("/", authenticateJWT, upload.single("video"), createSermon);
 
 // ✏️ Update existing sermon
-router.put("/:id", requireAdmin, updateSermon);
+router.put("/:id", authenticateJWT, updateSermon);
 
 // 🗑️ Delete sermon
-router.delete("/:id", requireAdmin, deleteSermon);
+router.delete("/:id", authenticateJWT, deleteSermon);
 
 export default router;
