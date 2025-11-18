@@ -6,7 +6,7 @@ import {
   updateEvent, 
   deleteEvent 
 } from "../controllers/eventsController.js";
-import { requireAdmin } from "../middleware/adminAuth.js";
+import { authenticateJWT } from "../middleware/adminAuth.js";
 
 const router = express.Router();
 
@@ -22,12 +22,12 @@ router.get("/", listEvents);
 // ===============================
 
 // Create a new event
-router.post("/", requireAdmin, createEvent);
+router.post("/", authenticateJWT, createEvent);
 
 // Update an existing event
-router.put("/:id", requireAdmin, updateEvent);
+router.put("/:id", authenticateJWT, updateEvent);
 
 // Delete an existing event
-router.delete("/:id", requireAdmin, deleteEvent);
+router.delete("/:id", authenticateJWT, deleteEvent);
 
 export default router;
