@@ -7,7 +7,7 @@ import {
   deleteEbook,
   editEbook, // new controller function
 } from "../controllers/ebooksController.js";
-import { requireAdmin } from "../middleware/adminAuth.js";
+import { authenticateJWT } from "../middleware/adminAuth.js";
 
 const router = express.Router();
 
@@ -23,7 +23,7 @@ router.get("/", listEbooks);
 // Admin: upload new ebook (PDF + optional cover)
 router.post(
   "/",
-  requireAdmin,
+  authenticateJWT,
   upload.fields([
     { name: "pdf", maxCount: 1 },
     { name: "cover", maxCount: 1 },
@@ -34,7 +34,7 @@ router.post(
 // Admin: edit ebook metadata and optionally replace files
 router.put(
   "/:id",
-  requireAdmin,
+  authenticateJWT,
   upload.fields([
     { name: "pdf", maxCount: 1 },
     { name: "cover", maxCount: 1 },
@@ -46,6 +46,6 @@ router.put(
 router.get("/download/:id", downloadEbook); // keep ready, optionally comment out in frontend
 
 // DELETE ebook by ID (admin only)
-router.delete("/:id", requireAdmin, deleteEbook);
+router.delete("/:id", authenticateJWT, deleteEbook);
 
 export default router;
