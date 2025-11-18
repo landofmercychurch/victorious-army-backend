@@ -1,12 +1,13 @@
 // src/routes/dailyVerseRoutes.js
 import express from "express";
 import { getLatestVerse, createVerse, updateVerse } from "../controllers/dailyVerseController.js";
-import { requireAdmin } from "../middleware/adminAuth.js";
+import { authenticateJWT } from "../middleware/authJWT.js";
+
 
 const router = express.Router();
 
 router.get("/", getLatestVerse);            // public
-router.post("/", requireAdmin, createVerse); // admin only
-router.put("/:id", requireAdmin, updateVerse); // admin only
+router.post("/", authenticateJWT, createVerse); // admin only
+router.put("/:id", authenticateJWT, updateVerse); // admin only
 
 export default router;
