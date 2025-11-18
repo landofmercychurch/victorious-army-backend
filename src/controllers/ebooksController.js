@@ -44,7 +44,7 @@ export async function uploadEbook(req, res) {
     pdfDoc.setTitle(title || "Untitled");
     pdfDoc.setAuthor(author || "Unknown");
     pdfDoc.setSubject(series || "Standalone");
-    if (series_order) pdfDoc.setKeywords([Part ${series_order}]);
+    if (series_order) pdfDoc.setKeywords([`Part ${series_order}`]);
     const pdfBuffer = await pdfDoc.save();
 
     // Upload PDF to Cloudinary
@@ -126,7 +126,7 @@ export async function editEbook(req, res) {
       pdfDoc.setTitle(title || existing.title);
       pdfDoc.setAuthor(author || existing.author);
       pdfDoc.setSubject(series || existing.series || "Standalone");
-      if (series_order) pdfDoc.setKeywords([Part ${series_order}]);
+      if (series_order) pdfDoc.setKeywords([`Part ${series_order}`]);
       const pdfBuffer = await pdfDoc.save();
 
       const pdfResult = await uploadBufferToCloudinary(pdfBuffer, {
@@ -199,7 +199,7 @@ export async function deleteEbook(req, res) {
     if (error) throw error;
     if (!data?.length) return res.status(404).json({ error: "No ebook(s) found" });
 
-    return res.json({ message: ${data.length} ebook(s) deleted, data });
+    return res.json({ message: `${data.length} ebook(s) deleted`, data });
   } catch (err) {
     console.error("[deleteEbook] Error:", err);
     return res.status(500).json({ error: err.message });
@@ -233,7 +233,7 @@ export async function downloadEbook(req, res) {
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader(
       "Content-Disposition",
-      attachment; filename="${safeTitle}.pdf"
+      `attachment; filename="${safeTitle}.pdf"`
     );
     res.send(Buffer.from(buffer));
   } catch (err) {
@@ -269,7 +269,7 @@ export async function readEbookOnline(req, res) {
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader(
       "Content-Disposition",
-      inline; filename="${safeTitle}.pdf" // <<< opens in browser
+      `inline; filename="${safeTitle}.pdf"` // <<< opens in browser
     );
     res.send(Buffer.from(buffer));
   } catch (err) {
