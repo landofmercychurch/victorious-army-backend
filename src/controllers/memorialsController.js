@@ -25,32 +25,37 @@ export async function listMemorials(req, res) {
 }
 
 /**
- * Create a new memorial with uploaded images
+ * Create a new memorial with multiple uploaded files (images/audio/etc.)
  */
 export async function createMemorial(req, res) {
   try {
-    console.log("🖼️ Received memorial upload request:", req.body);
-
     const { title, description } = req.body;
 
-    if (!req.files || req.files.length === 0) {
-      console.warn("⚠️ No images provided for memorial");
-      return res.status(400).json({ error: "At least one image required." });
-    }
+    if (!title) return res.status(400).json({ error: "Title is required." });
+    if (!req.files || req.files.length === 0) return res.status(400).json({ error: "At least one file is required." });
 
-    const uploadedImages = [];
+    const uploadedFiles = [];
 
     for (const file of req.files) {
-      console.log("☁️ Uploading image to Cloudinary:", file.originalname);
-      const result = await uploadBufferToCloudinary(file.buffer, { folder: "memorials" });
-      uploadedImages.push({ url: result.secure_url, public_id: result.public_id });
-      console.log("✅ Image uploaded:", result.secure_url);
+      console.log("☁️ Uploading file to Cloudinary:", file.originalname);
+
+      // Use resource_type "auto" to support images, audio, videos, etc.
+      const result = await uploadBufferToCloudinary(file.buffer, { folder: "memorials", resource_type: "auto" });
+
+      uploadedFiles.push({
+        url: result.secure_url,
+        public_id: result.public_id,
+        originalname: file.originalname,
+        mimetype: file.mimetype
+      });
+
+      console.log("✅ File uploaded:", result.secure_url);
     }
 
-    console.log("🗂️ Inserting memorial record into database...");
+    // Insert a single memorial record with all files
     const { data, error } = await supabase
       .from("memorials")
-      .insert([{ title, description, images: uploadedImages }])
+      .insert([{ title, description, files: uploadedFiles }])
       .select()
       .single();
 
@@ -65,17 +70,16 @@ export async function createMemorial(req, res) {
 }
 
 /**
- * Delete a memorial by ID (including Cloudinary images)
+ * Delete a memorial by ID (including all files on Cloudinary)
  */
 export async function deleteMemorial(req, res) {
   try {
     const { id } = req.params;
     console.log("🗑️ Deleting memorial:", id);
 
-    // Fetch memorial to get images
     const { data: memorial, error: fetchErr } = await supabase
       .from("memorials")
-      .select("id, images")
+      .select("id, files")
       .eq("id", id)
       .single();
 
@@ -84,13 +88,13 @@ export async function deleteMemorial(req, res) {
       return res.status(404).json({ error: "Memorial not found" });
     }
 
-    // Delete images from Cloudinary
-    if (memorial.images && Array.isArray(memorial.images)) {
-      for (const img of memorial.images) {
-        if (img.public_id) {
+    // Delete all files from Cloudinary
+    if (memorial.files && Array.isArray(memorial.files)) {
+      for (const file of memorial.files) {
+        if (file.public_id) {
           try {
-            await cloudinary.uploader.destroy(img.public_id, { resource_type: "image" });
-            console.log("🧹 Deleted image from Cloudinary:", img.public_id);
+            await cloudinary.uploader.destroy(file.public_id, { resource_type: "auto" });
+            console.log("🧹 Deleted file from Cloudinary:", file.public_id);
           } catch (cloudErr) {
             console.error("⚠️ Cloudinary delete error:", cloudErr);
           }
@@ -98,7 +102,6 @@ export async function deleteMemorial(req, res) {
       }
     }
 
-    // Delete memorial from Supabase
     const { error: delErr } = await supabase
       .from("memorials")
       .delete()
