@@ -1,7 +1,7 @@
 // src/routes/dailyVerseRoutes.js
 import express from "express";
 import { getLatestVerse, createVerse, updateVerse } from "../controllers/dailyVerseController.js";
-import { authenticateJWT } from "../middleware/authJWT.js";
+import { authenticateJWT } from "../middleware/adminAuth.js";
 
 
 const router = express.Router();
