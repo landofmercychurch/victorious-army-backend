@@ -1,3 +1,4 @@
+// src/controllers/announcementsController.js
 import { supabase } from "../config/supabase.js";
 
 /**
@@ -23,19 +24,24 @@ export async function listAnnouncements(req, res) {
 
 /**
  * Admin: Create a new announcement
+ * Expects req.user.id to exist (authenticated user)
  */
 export async function createAnnouncement(req, res) {
   try {
-    const { title, message, active } = req.body;
-    console.log("📝 Creating announcement:", title);
+    const { title, message, active = true } = req.body;
+    const created_by = req.user?.id;
 
-    if (!title || !message) {
-      return res.status(400).json({ error: "title and message required" });
+    if (!title?.trim() || !message?.trim()) {
+      return res.status(400).json({ error: "Title and message are required." });
+    }
+
+    if (!created_by) {
+      return res.status(401).json({ error: "Unauthorized: missing user ID." });
     }
 
     const { data, error } = await supabase
       .from("announcements")
-      .insert([{ title, message, active: !!active }])
+      .insert([{ title, message, active: !!active, created_by }])
       .select()
       .single();
 
@@ -56,17 +62,20 @@ export async function updateAnnouncement(req, res) {
   try {
     const { id } = req.params;
     const { title, message, active } = req.body;
-    console.log("✏️ Updating announcement:", id, { title });
+
+    if (!title?.trim() || !message?.trim()) {
+      return res.status(400).json({ error: "Title and message are required." });
+    }
 
     const { data, error } = await supabase
       .from("announcements")
-      .update({ title, message, active: !!active })
+      .update({ title, message, active: typeof active === "boolean" ? active : true })
       .eq("id", id)
       .select()
       .single();
 
     if (error) throw error;
-    if (!data) return res.status(404).json({ error: "Announcement not found" });
+    if (!data) return res.status(404).json({ error: "Announcement not found." });
 
     console.log("✅ Announcement updated:", data);
     res.json(data);
@@ -82,7 +91,6 @@ export async function updateAnnouncement(req, res) {
 export async function deleteAnnouncement(req, res) {
   try {
     const { id } = req.params;
-    console.log("🗑️ Deleting announcement:", id);
 
     const { data, error } = await supabase
       .from("announcements")
@@ -92,11 +100,11 @@ export async function deleteAnnouncement(req, res) {
 
     if (error) throw error;
     if (!data || data.length === 0) {
-      return res.status(404).json({ error: "Announcement not found" });
+      return res.status(404).json({ error: "Announcement not found." });
     }
 
     console.log("✅ Announcement deleted:", id);
-    res.json({ success: true, message: "Announcement deleted successfully", data });
+    res.json({ success: true, message: "Announcement deleted successfully.", data });
   } catch (err) {
     console.error("❌ Error deleting announcement:", err);
     res.status(500).json({ error: err.message });
