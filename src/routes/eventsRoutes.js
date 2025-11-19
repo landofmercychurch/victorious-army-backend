@@ -10,24 +10,28 @@ import { authenticateJWT } from "../middleware/adminAuth.js";
 
 const router = express.Router();
 
-// ===============================
-// --- Public Routes ---
-// ===============================
+/**
+ * ===============================
+ * Public Routes
+ * ===============================
+ */
 
-// GET all events (public)
+// GET /api/events - List all events (public)
 router.get("/", listEvents);
 
-// ===============================
-// --- Admin Routes ---
-// ===============================
+/**
+ * ===============================
+ * Admin Routes (require JWT)
+ * ===============================
+ */
 
-// Create a new event
+// POST /api/events - Create a new event
 router.post("/", authenticateJWT, createEvent);
 
-// Update an existing event
+// PUT /api/events/:id - Update an existing event
 router.put("/:id", authenticateJWT, updateEvent);
 
-// Delete an existing event
+// DELETE /api/events/:id - Delete an existing event
 router.delete("/:id", authenticateJWT, deleteEvent);
 
 export default router;
