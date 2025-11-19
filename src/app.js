@@ -24,9 +24,8 @@ import announcementsRoutes from "./routes/announcementsRoutes.js";
 dotenv.config();
 
 const app = express();
-
 // ==========================================
-// 🌐 CORS Configuration
+// 🌐 CORS Configuration (Final Fix)
 // ==========================================
 const allowedOrigins = [
   "https://victoriousarmyrevivalmovementchurch.netlify.app",
@@ -34,20 +33,30 @@ const allowedOrigins = [
   "http://127.0.0.1:5500",
   "http://localhost:5500",
   "https://varmadmin.netlify.app",
-  "http://localhost:7700/index.html",
+  "http://localhost:7700",
 ];
 
+// CORS Middleware
 app.use(
   cors({
     origin: (origin, cb) => {
-      if (!origin) return cb(null, true); // Postman or SSR requests
-      if (allowedOrigins.includes(origin)) return cb(null, true);
-      console.warn(`🚫 CORS blocked request from: ${origin}`);
+      if (!origin) return cb(null, true); // Allow server-to-server or Postman
+
+      if (allowedOrigins.includes(origin)) {
+        return cb(null, true);
+      }
+
+      console.warn(`🚫 CORS blocked: ${origin}`);
       return cb(new Error("Not allowed by CORS"));
     },
     credentials: true,
+    allowedHeaders: ["Content-Type", "Authorization"],
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
   })
 );
+
+// Allow browsers to send preflight OPTIONS request
+app.options("*", cors());
 
 // ==========================================
 // ⚙️ Body Parser — allow large JSON payloads
