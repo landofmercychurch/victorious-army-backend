@@ -18,6 +18,7 @@ import adminCommentsRoutes from "./routes/adminCommentsRoutes.js";
 import likesRoutes from "./routes/likesRoutes.js";
 import ambientRoutes from "./routes/ambientRoutes.js";
 import uploadsStatusRoutes from "./routes/uploadsStatusRoutes.js";
+import announcemntRoutes from ".routes/announcementRoutes.js";
 
 dotenv.config();
 
