@@ -4,24 +4,29 @@ import streamifier from "streamifier";
 import { fileTypeFromBuffer } from "file-type";
 
 /**
- * Universal Cloudinary uploader with progress tracking:
- * - Auto-detects image, video, audio, or PDF
- * - Handles transformations automatically
- * - Returns secure Cloudinary URLs
- * - Reports progress for video uploads
+ * Universal Cloudinary uploader with:
+ * - Safe fallback for MP4 videos whose MIME cannot be detected
+ * - Reliable URL + public_id return for ALL videos (compressed/uncompressed)
+ * - Progress tracking for video uploads
  */
 export async function uploadBufferToCloudinary(buffer, options = {}, onProgress) {
-  const detected = await fileTypeFromBuffer(buffer);
-  const mime = detected?.mime || "application/octet-stream";
+  let detected = await fileTypeFromBuffer(buffer);
+  let mime = detected?.mime;
+
+  console.log("🔍 Detected MIME:", mime);
+
+  // ==========================================
+  // ⭐ CRITICAL FIX: When detection fails
+  // ==========================================
+  if (!mime || mime === "application/octet-stream") {
+    console.log("⚠️ MIME detection failed — forcing video/mp4 fallback.");
+    mime = "video/mp4";
+  }
 
   const isVideo = mime.startsWith("video/");
   const isImage = mime.startsWith("image/");
   const isAudio = mime.startsWith("audio/");
   const isPdf = mime === "application/pdf";
-
-  if (!isVideo && !isImage && !isAudio && !isPdf) {
-    throw new Error(`Unsupported file type: ${mime}`);
-  }
 
   const {
     folder = isVideo
@@ -36,16 +41,20 @@ export async function uploadBufferToCloudinary(buffer, options = {}, onProgress)
 
   const cleanFolder = folder.trim();
 
-  // Configure upload options by type
+  // ==========================================
+  // Configure upload-type specific options
+  // ==========================================
   let uploadOptions;
   if (isVideo) {
+    console.log("🎥 Treating file as VIDEO upload (Cloudinary resource_type=video)");
+
     uploadOptions = {
       resource_type: "video",
       folder: cleanFolder,
       use_filename: true,
       unique_filename: true,
       public_id,
-      chunk_size: 6000000, // 6 MB per chunk
+      chunk_size: 6000000, // 6MB
       eager: [
         { transformation: [{ fetch_format: "mp4", quality: "auto", h: 720 }] },
         { transformation: [{ fetch_format: "webm", quality: "auto", vc: "vp9", h: 720 }] },
@@ -81,19 +90,18 @@ export async function uploadBufferToCloudinary(buffer, options = {}, onProgress)
   }
 
   console.log(
-    `📤 Uploading ${mime} to folder '${cleanFolder}' (${
-      isVideo ? "video" : isAudio ? "audio" : isPdf ? "PDF" : "image"
-    })`
+    `📤 Uploading file as: ${isVideo ? "VIDEO" : isImage ? "IMAGE" : isAudio ? "AUDIO" : "PDF"} to '${cleanFolder}'`
   );
 
-  // --- Video upload with progress ---
+  // ==========================================
+  // VIDEO STREAM UPLOAD WITH PROGRESS
+  // ==========================================
   if (isVideo && onProgress) {
     return new Promise((resolve, reject) => {
       const readStream = streamifier.createReadStream(buffer);
       let uploaded = 0;
       const total = buffer.length;
 
-      // Track progress as data flows
       readStream.on("data", (chunk) => {
         uploaded += chunk.length;
         onProgress(Math.round((uploaded / total) * 100));
@@ -101,7 +109,12 @@ export async function uploadBufferToCloudinary(buffer, options = {}, onProgress)
 
       const uploadStream = cloudinary.uploader.upload_stream(uploadOptions, (error, result) => {
         if (error) return reject(new Error(`Cloudinary upload failed: ${error.message}`));
-        if (!result?.secure_url) return reject(new Error("Cloudinary returned invalid response."));
+
+        if (!result?.secure_url || !result?.public_id) {
+          console.error("❌ CLOUDINARY RETURNED INVALID VIDEO RESPONSE:", result);
+          return reject(new Error("Cloudinary failed to return secure_url or public_id."));
+        }
+
         resolve(result);
       });
 
@@ -109,6 +122,14 @@ export async function uploadBufferToCloudinary(buffer, options = {}, onProgress)
     });
   }
 
-  // --- Non-video files or videos without progress ---
-  return cloudinary.uploader.upload(buffer, uploadOptions);
+  // ==========================================
+  // Non-video upload (or video without progress)
+  // ==========================================
+  const result = await cloudinary.uploader.upload(buffer, uploadOptions);
+
+  if (!result?.secure_url || !result?.public_id) {
+    throw new Error("❌ Cloudinary returned invalid response for non-progress upload.");
+  }
+
+  return result;
 }
