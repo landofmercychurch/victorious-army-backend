@@ -4,10 +4,11 @@ import streamifier from "streamifier";
 import { fileTypeFromBuffer } from "file-type";
 
 /**
- * Universal Cloudinary uploader:
+ * Universal Cloudinary uploader with progress tracking:
  * - Auto-detects image, video, audio, or PDF
  * - Handles transformations automatically
  * - Returns secure Cloudinary URLs
+ * - Reports progress for video uploads
  */
 export async function uploadBufferToCloudinary(buffer, options = {}, onProgress) {
   const detected = await fileTypeFromBuffer(buffer);
@@ -33,45 +34,49 @@ export async function uploadBufferToCloudinary(buffer, options = {}, onProgress)
     public_id = undefined,
   } = options;
 
-  // ✅ Trim folder to remove any leading/trailing whitespace
   const cleanFolder = folder.trim();
 
   // Configure upload options by type
   let uploadOptions;
   if (isVideo) {
     uploadOptions = {
-      folder: cleanFolder,
       resource_type: "video",
+      folder: cleanFolder,
       use_filename: true,
       unique_filename: true,
+      public_id,
+      chunk_size: 6000000, // 6 MB per chunk
       eager: [
-        { transformation: [{ fetch_format: "mp4", quality: "auto", h: 720 }], format: "mp4" },
-        { transformation: [{ fetch_format: "webm", quality: "auto", vc: "vp9", h: 720 }], format: "webm" },
+        { transformation: [{ fetch_format: "mp4", quality: "auto", h: 720 }] },
+        { transformation: [{ fetch_format: "webm", quality: "auto", vc: "vp9", h: 720 }] },
       ],
     };
   } else if (isAudio) {
     uploadOptions = {
+      resource_type: "video",
       folder: cleanFolder,
-      resource_type: "video", // Cloudinary treats audio as video
       use_filename: true,
       unique_filename: true,
       allowed_formats: ["mp3", "wav", "m4a", "aac", "ogg"],
+      public_id,
     };
   } else if (isPdf) {
     uploadOptions = {
+      resource_type: "raw",
       folder: cleanFolder,
-      resource_type: "raw", // PDFs are raw files
       use_filename: true,
       unique_filename: true,
       allowed_formats: ["pdf"],
+      public_id,
     };
   } else {
     uploadOptions = {
-      folder: cleanFolder,
       resource_type: "image",
+      folder: cleanFolder,
       use_filename: true,
       unique_filename: true,
       allowed_formats: ["jpg", "jpeg", "png", "webp"],
+      public_id,
     };
   }
 
@@ -81,28 +86,29 @@ export async function uploadBufferToCloudinary(buffer, options = {}, onProgress)
     })`
   );
 
-  return new Promise((resolve, reject) => {
-    try {
+  // --- Video upload with progress ---
+  if (isVideo && onProgress) {
+    return new Promise((resolve, reject) => {
+      const readStream = streamifier.createReadStream(buffer);
+      let uploaded = 0;
+      const total = buffer.length;
+
+      // Track progress as data flows
+      readStream.on("data", (chunk) => {
+        uploaded += chunk.length;
+        onProgress(Math.round((uploaded / total) * 100));
+      });
+
       const uploadStream = cloudinary.uploader.upload_stream(uploadOptions, (error, result) => {
         if (error) return reject(new Error(`Cloudinary upload failed: ${error.message}`));
         if (!result?.secure_url) return reject(new Error("Cloudinary returned invalid response."));
         resolve(result);
       });
 
-      const readStream = streamifier.createReadStream(buffer);
-
-      if (onProgress) {
-        let uploaded = 0;
-        const total = buffer.length;
-        readStream.on("data", (chunk) => {
-          uploaded += chunk.length;
-          onProgress(Math.round((uploaded / total) * 100));
-        });
-      }
-
       readStream.pipe(uploadStream);
-    } catch (err) {
-      reject(err);
-    }
-  });
+    });
+  }
+
+  // --- Non-video files or videos without progress ---
+  return cloudinary.uploader.upload(buffer, uploadOptions);
 }
