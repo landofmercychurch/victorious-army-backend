@@ -18,7 +18,7 @@ import adminCommentsRoutes from "./routes/adminCommentsRoutes.js";
 import likesRoutes from "./routes/likesRoutes.js";
 import ambientRoutes from "./routes/ambientRoutes.js";
 import uploadsStatusRoutes from "./routes/uploadsStatusRoutes.js";
-import announcemntRoutes from ".routes/announcementRoutes.js";
+import announcemntsRoutes from ".routes/announcementsRoutes.js";
 
 dotenv.config();
 
@@ -75,6 +75,7 @@ app.use("/api/admin/comments", adminCommentsRoutes);
 app.use("/api/likes", likesRoutes);
 app.use("/api/ambient", ambientRoutes);
 app.use("/api/uploads-status", uploadsStatusRoutes);
+app.use("/api/announcemnts", announcemntsRoutes);
 
 // ==========================================
 // ❤️ Health Check
