@@ -15,10 +15,10 @@ export async function listEvents(req, res) {
     if (error) throw error;
 
     console.log(`✅ Found ${data.length} events`);
-    res.json(data);
+    return res.json(data);
   } catch (err) {
     console.error("❌ Error fetching events:", err);
-    res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: err.message });
   }
 }
 
@@ -28,25 +28,27 @@ export async function listEvents(req, res) {
 export async function createEvent(req, res) {
   try {
     const { title, description, start_at, location } = req.body;
-    console.log("📝 Creating event:", { title, start_at });
+    const created_by = req.user.id; // RLS ownership
+
+    console.log("📝 Creating event:", { title, start_at, created_by });
 
     if (!title || !start_at) {
-      return res.status(400).json({ error: "title and start_at required" });
+      return res.status(400).json({ error: "Title and start_at are required" });
     }
 
     const { data, error } = await supabase
       .from("events")
-      .insert([{ title, description, start_at, location }])
+      .insert([{ title, description, start_at, location, created_by }])
       .select()
       .single();
 
     if (error) throw error;
 
     console.log("✅ Event created:", data);
-    res.status(201).json(data);
+    return res.status(201).json(data);
   } catch (err) {
     console.error("❌ Error creating event:", err);
-    res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: err.message });
   }
 }
 
@@ -57,23 +59,26 @@ export async function updateEvent(req, res) {
   try {
     const { id } = req.params;
     const { title, description, start_at, location } = req.body;
-    console.log("✏️ Updating event:", id, { title, start_at });
+    const adminId = req.user.id;
+
+    console.log("✏️ Updating event:", id, { title, start_at, adminId });
 
     const { data, error } = await supabase
       .from("events")
       .update({ title, description, start_at, location })
       .eq("id", id)
+      .eq("created_by", adminId) // RLS: only update own events
       .select()
       .single();
 
     if (error) throw error;
-    if (!data) return res.status(404).json({ error: "Event not found" });
+    if (!data) return res.status(404).json({ error: "Event not found or unauthorized" });
 
     console.log("✅ Event updated:", data);
-    res.json(data);
+    return res.json(data);
   } catch (err) {
     console.error("❌ Error updating event:", err);
-    res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: err.message });
   }
 }
 
@@ -83,26 +88,27 @@ export async function updateEvent(req, res) {
 export async function deleteEvent(req, res) {
   try {
     const { id } = req.params;
-    console.log("🗑️ Deleting event:", id);
+    const adminId = req.user.id;
 
-    // Add `.select()` to get deleted row and prevent false 404
+    console.log("🗑️ Deleting event:", id, { adminId });
+
     const { data, error } = await supabase
       .from("events")
       .delete()
       .eq("id", id)
+      .eq("created_by", adminId) // RLS: only delete own events
       .select();
 
     if (error) throw error;
-
     if (!data || data.length === 0) {
-      console.warn("⚠️ Event not found for deletion:", id);
-      return res.status(404).json({ error: "Event not found" });
+      console.warn("⚠️ Event not found or unauthorized for deletion:", id);
+      return res.status(404).json({ error: "Event not found or unauthorized" });
     }
 
     console.log("✅ Event deleted successfully:", id);
-    res.json({ success: true, message: "Event deleted successfully", data });
+    return res.json({ success: true, message: "Event deleted successfully", data });
   } catch (err) {
     console.error("❌ Error deleting event:", err);
-    res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: err.message });
   }
 }
