@@ -6,25 +6,22 @@ import { supabase } from "../config/supabase.js";
  */
 export async function listAnnouncements(req, res) {
   try {
-    console.log("📢 Fetching all announcements...");
     const { data, error } = await supabase
       .from("announcements")
       .select("*")
       .order("created_at", { ascending: false });
 
     if (error) throw error;
-
-    console.log(`✅ Found ${data.length} announcements`);
     res.json(data);
   } catch (err) {
-    console.error("❌ Error fetching announcements:", err);
+    console.error("listAnnouncements error:", err);
     res.status(500).json({ error: err.message });
   }
 }
 
 /**
  * Admin: Create a new announcement
- * Expects req.user.id to exist (authenticated user)
+ * Requires req.user.id
  */
 export async function createAnnouncement(req, res) {
   try {
@@ -34,7 +31,6 @@ export async function createAnnouncement(req, res) {
     if (!title?.trim() || !message?.trim()) {
       return res.status(400).json({ error: "Title and message are required." });
     }
-
     if (!created_by) {
       return res.status(401).json({ error: "Unauthorized: missing user ID." });
     }
@@ -46,11 +42,9 @@ export async function createAnnouncement(req, res) {
       .single();
 
     if (error) throw error;
-
-    console.log("✅ Announcement created:", data);
     res.status(201).json(data);
   } catch (err) {
-    console.error("❌ Error creating announcement:", err);
+    console.error("createAnnouncement error:", err);
     res.status(500).json({ error: err.message });
   }
 }
@@ -77,10 +71,9 @@ export async function updateAnnouncement(req, res) {
     if (error) throw error;
     if (!data) return res.status(404).json({ error: "Announcement not found." });
 
-    console.log("✅ Announcement updated:", data);
     res.json(data);
   } catch (err) {
-    console.error("❌ Error updating announcement:", err);
+    console.error("updateAnnouncement error:", err);
     res.status(500).json({ error: err.message });
   }
 }
@@ -99,14 +92,11 @@ export async function deleteAnnouncement(req, res) {
       .select();
 
     if (error) throw error;
-    if (!data || data.length === 0) {
-      return res.status(404).json({ error: "Announcement not found." });
-    }
+    if (!data || data.length === 0) return res.status(404).json({ error: "Announcement not found." });
 
-    console.log("✅ Announcement deleted:", id);
     res.json({ success: true, message: "Announcement deleted successfully.", data });
   } catch (err) {
-    console.error("❌ Error deleting announcement:", err);
+    console.error("deleteAnnouncement error:", err);
     res.status(500).json({ error: err.message });
   }
 }
