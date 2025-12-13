@@ -1,19 +1,14 @@
-//scripts/generate-ebooks.js
+// src/scripts/generate-ebooks.js
 
 import fs from "fs";
 import path from "path";
 import { supabase } from "../config/supabase.js";
 
 // ------------------ CONFIG ------------------
-const SUPABASE_URL = process.env.SUPABASE_URL;
-const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY;
 const SITE_URL = process.env.SITE_URL || "";
-
 const OUTPUT_DIR = path.join(process.cwd(), "public", "ebooks");
 
 // ------------------ INIT ------------------
-const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
-
 if (!fs.existsSync(OUTPUT_DIR)) {
   fs.mkdirSync(OUTPUT_DIR, { recursive: true });
 }
@@ -29,7 +24,7 @@ function slugify(text = "") {
 }
 
 function escapeHTML(str = "") {
-  return str.replace(/[&<>"']/g, m => ({
+  return str.replace(/[&<>"']/g, (m) => ({
     "&": "&amp;",
     "<": "&lt;",
     ">": "&gt;",
@@ -51,7 +46,7 @@ async function fetchBooks() {
 
 // ------------------ BOOK PAGE ------------------
 function generateBookHTML(book) {
-  const slug = slugify(book.title);
+  const slug = book.slug || slugify(book.title);
   const url = `${SITE_URL}/ebooks/${slug}.html`;
 
   return `<!DOCTYPE html>
@@ -78,14 +73,18 @@ function generateBookHTML(book) {
   <main>
     <h1>${escapeHTML(book.title)}</h1>
 
-    ${book.cover_url ? `<img src="${book.cover_url}" alt="${escapeHTML(book.title)} cover" />` : ""}
+    ${book.cover_url ? `
+      <img src="${book.cover_url}" alt="${escapeHTML(book.title)} cover" />
+    ` : ""}
 
     ${book.author ? `<p><strong>Author:</strong> ${escapeHTML(book.author)}</p>` : ""}
     ${book.series ? `<p><strong>Series:</strong> ${escapeHTML(book.series)}</p>` : ""}
     ${book.description ? `<p>${escapeHTML(book.description)}</p>` : ""}
 
     <p>
-      <a href="${book.pdf_url}" target="_blank">📖 Read / Download PDF</a>
+      <a href="${book.pdf_url}" target="_blank" rel="noopener">
+        Read / Download PDF
+      </a>
     </p>
 
     <p><a href="/ebooks/index.html">← Back to all books</a></p>
@@ -96,11 +95,13 @@ function generateBookHTML(book) {
 
 // ------------------ INDEX PAGE ------------------
 function generateIndexHTML(books) {
-  const items = books.map(book => {
-    const slug = slugify(book.title);
+  const items = books.map((book) => {
+    const slug = book.slug || slugify(book.title);
     return `
       <li>
-        <a href="/ebooks/${slug}.html">${escapeHTML(book.title)}</a>
+        <a href="/ebooks/${slug}.html">
+          ${escapeHTML(book.title)}
+        </a>
         ${book.author ? ` – ${escapeHTML(book.author)}` : ""}
       </li>`;
   }).join("");
@@ -118,7 +119,7 @@ function generateIndexHTML(books) {
 
 <body>
   <main>
-    <h1>📚 Church eBooks</h1>
+    <h1>Church eBooks</h1>
     <ul>${items}</ul>
   </main>
 </body>
@@ -127,12 +128,12 @@ function generateIndexHTML(books) {
 
 // ------------------ MAIN ------------------
 (async function build() {
-  console.log("📚 Generating ebook pages...");
+  console.log("Generating ebook pages...");
 
   const books = await fetchBooks();
 
   for (const book of books) {
-    const slug = slugify(book.title);
+    const slug = book.slug || slugify(book.title);
     const filePath = path.join(OUTPUT_DIR, `${slug}.html`);
     const html = generateBookHTML(book);
     fs.writeFileSync(filePath, html);
@@ -141,5 +142,5 @@ function generateIndexHTML(books) {
   const indexHTML = generateIndexHTML(books);
   fs.writeFileSync(path.join(OUTPUT_DIR, "index.html"), indexHTML);
 
-  console.log(`✅ Generated ${books.length} ebook pages`);
+  console.log(`Generated ${books.length} ebook pages`);
 })();
