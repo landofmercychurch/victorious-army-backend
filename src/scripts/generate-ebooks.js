@@ -2,7 +2,7 @@
 
 import fs from "fs";
 import path from "path";
-import { createClient } from "@supabase/supabase-js";
+import { supabase } from "../config/supabase.js";
 
 // ------------------ CONFIG ------------------
 const SUPABASE_URL = process.env.SUPABASE_URL;
