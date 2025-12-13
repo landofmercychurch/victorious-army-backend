@@ -5,7 +5,7 @@
   "scripts": {
     "start": "node src/server.js",
     "dev": "nodemon --watch src --exec node src/server.js",
-    "generate-ebooks": "node scripts/generate-ebooks.js",
+    "generate-ebooks": "node src/scripts/generate-ebooks.js",
     "build": "npm run generate-ebooks && echo 'Build complete'",
     "prepare": "npm run build"
   },
